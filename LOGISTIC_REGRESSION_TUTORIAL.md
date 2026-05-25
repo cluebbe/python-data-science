@@ -119,7 +119,7 @@ from sklearn.metrics import (
 - **StandardScaler** — zero-mean, unit-variance feature normalisation
 - **LogisticRegression** — scikit-learn's logistic regression classifier
 - **DecisionTreeClassifier** — used in Step 9 for comparison
-- **make_pipeline / PartialDependenceDisplay** — used in Step 12 for partial dependence plots
+- **make_pipeline / PartialDependenceDisplay** — used in Step 11 for partial dependence plots
 - **roc_auc_score / RocCurveDisplay** — ROC curve and AUC metric
 
 ---
@@ -471,76 +471,7 @@ Unlike a decision tree — which assigns a hard probability based on the fractio
 
 ---
 
-## Step 11 — DPL: Difference in Proportions of Labels
-
-### Background
-
-**DPL** (Difference in Proportions of Labels) is a fairness metric that measures whether two subgroups have different rates of positive outcomes — first in the ground-truth data, and then in the model's predictions:
-
-> DPL = P(positive label | group A) − P(positive label | group B)
-
-A DPL near zero means the two groups have similar label rates. A large absolute DPL flags a disparity: either the data itself contains a structural imbalance between groups, or the model amplifies that imbalance beyond what the labels alone justify.
-
-### Task
-
-The Breast Cancer dataset has no demographic features, so construct a binary group by splitting on the **median value of `mean_area`** (feature index 3): samples below the median form the *small-tumour* group; samples at or above the median form the *large-tumour* group.
-
-1. Compute DPL for the ground-truth benign labels in the training set.
-2. Compute DPL for the model's predicted labels on the test set.
-3. Plot both as side-by-side grouped bar charts.
-4. In 2–3 sentences, interpret the results — does the model amplify or mitigate the data-level disparity?
-
-<details>
-<summary>Solution</summary>
-
-```python
-area_median = np.median(X_train[:, 3])
-grp_train   = (X_train[:, 3] >= area_median).astype(int)   # 1=large, 0=small
-grp_test    = (X_test[:, 3]  >= area_median).astype(int)
-
-p_label_large = y_train[grp_train == 1].mean()
-p_label_small = y_train[grp_train == 0].mean()
-dpl_labels    = p_label_large - p_label_small
-
-p_pred_large  = y_pred[grp_test == 1].mean()
-p_pred_small  = y_pred[grp_test == 0].mean()
-dpl_preds     = p_pred_large - p_pred_small
-
-print("=== DPL: Difference in Proportions of Labels ===")
-print(f"  Group split: mean_area median = {area_median:.1f}")
-print(f"  Training set — P(benign | large): {p_label_large:.3f}   "
-      f"P(benign | small): {p_label_small:.3f}   DPL = {dpl_labels:+.3f}")
-print(f"  Test set     — P(ŷ=benign | large): {p_pred_large:.3f}   "
-      f"P(ŷ=benign | small): {p_pred_small:.3f}   DPL = {dpl_preds:+.3f}\n")
-
-fig, axes = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
-for ax, (title, vals) in zip(axes, [
-    ("Ground-truth labels (train)", [p_label_small, p_label_large]),
-    ("Model predictions (test)",    [p_pred_small,  p_pred_large]),
-]):
-    bars = ax.bar(
-        ["small tumour\n(below median)", "large tumour\n(above median)"],
-        vals, color=["steelblue", "tomato"], width=0.5,
-    )
-    ax.bar_label(bars, fmt="{:.3f}", padding=3)
-    ax.set_ylim(0, 1.1)
-    ax.set_ylabel("P(benign)")
-    ax.set_title(title)
-    ax.axhline(0.5, color="grey", linestyle="--", linewidth=0.8)
-fig.suptitle("DPL: Proportion of Benign by Tumour-Size Group")
-fig.tight_layout()
-plt.show()
-```
-
-A negative DPL confirms a clinically expected pattern: large-tumour samples are substantially less frequently benign than small-tumour samples, both in the data and in the model's predictions. If the model's |DPL| exceeds the data's |DPL|, the model is **amplifying** the disparity — producing a stronger group bias than the labels alone warrant, which would merit further investigation. If the model's |DPL| is smaller, it is partially **mitigating** the data-level disparity.
-
-In real applications, DPL would be computed across demographic groups (age, sex, ethnicity) rather than a clinical feature, and a threshold — often |DPL| < 0.1 — is used to decide whether the disparity is acceptable.
-
-</details>
-
----
-
-## Step 12 — Partial Dependence Plots (PDPs)
+## Step 11 — Partial Dependence Plots (PDPs)
 
 ### Background
 
@@ -565,21 +496,25 @@ pipe = make_pipeline(
 pipe.fit(X_train, y_train)
 
 top4 = sorted_idx[:4].tolist()   # four features with largest |coef|
+best_positive = 15  # compactness error — strongest positive coefficient (+0.68), slopes upward
+pdp_features = top4 + [best_positive]
 
-fig, axes = plt.subplots(1, 4, figsize=(16, 4))
+fig, axes = plt.subplots(1, 5, figsize=(20, 4))
 PartialDependenceDisplay.from_estimator(
     pipe, X_train,
-    features=top4,
+    features=pdp_features,
     feature_names=bc.feature_names,
     ax=axes,
     grid_resolution=100,
 )
-fig.suptitle("Partial Dependence Plots — Top 4 Features (P(benign))")
+fig.suptitle("Partial Dependence Plots — Top 4 Features + compactness error (P(benign))")
 fig.tight_layout()
 plt.show()
 ```
 
 Because logistic regression has a linear decision boundary, each feature's log-odds contribution is linear in xⱼ — a fixed amount per unit change, regardless of where on the axis you are. When that linear shift is passed through the sigmoid to produce a probability, the result is an **S-shaped (sigmoid) curve**: the probability changes slowly near 0 and 1 (where the sigmoid is flat) and fastest in the middle (where the sigmoid is steepest).
+
+The first four features all have negative coefficients — as their values increase, P(benign) falls. `compactness error` has a positive coefficient (+0.68), so its PDP slopes **upward**: higher compactness error is associated with a higher probability of benign. This contrast shows that not all features point in the same clinical direction.
 
 A decision tree PDP, by contrast, would show a **staircase** pattern: the predicted probability is constant within each leaf interval and jumps abruptly at each split threshold. The smooth sigmoid shape of logistic regression is a direct visual signature of its linear-in-log-odds structure.
 
@@ -587,7 +522,7 @@ A decision tree PDP, by contrast, would show a **staircase** pattern: the predic
 
 ---
 
-## Step 13 — Shapley Values
+## Step 12 — Shapley Values
 
 ### Background
 
@@ -610,9 +545,8 @@ This additive decomposition holds exactly because the model is linear in the log
 ### Task
 
 1. Compute Shapley values analytically for all test samples using the formula above. Verify that the reconstruction error (|f(**x**) − baseline − Σφⱼ|) is near machine precision.
-2. Plot a **summary bar chart** showing the mean |Shapley value| per feature for the top 15 features.
-3. Plot a **waterfall chart** for the first test sample showing how each of the top-10 features pushes the log-odds from the baseline to the final prediction.
-4. In 2–3 sentences, explain how Shapley values differ from raw coefficients as a tool for understanding individual predictions.
+2. Plot a **waterfall chart** for the first test sample showing how each of the top-10 features pushes the log-odds from the baseline to the final prediction.
+3. In 2–3 sentences, explain how Shapley values differ from raw coefficients as a tool for understanding individual predictions.
 
 <details>
 <summary>Solution</summary>
@@ -627,50 +561,23 @@ residuals = np.abs(log_odds - (base_value + shap_vals.sum(axis=1)))
 print(f"Shapley reconstruction error (max): {residuals.max():.2e}  (should be ~0)\n")
 ```
 
-**Summary bar chart:**
-
-```python
-mean_abs_shap = np.abs(shap_vals).mean(axis=0)
-shap_order    = np.argsort(mean_abs_shap)[::-1]
-top_shap_n    = 15
-
-print("=== Shapley Values — Mean |φⱼ| across test set ===")
-for rank, idx in enumerate(shap_order[:top_shap_n], 1):
-    print(f"  {rank:2}. {bc.feature_names[idx]:<35} mean |φ| = {mean_abs_shap[idx]:.4f}")
-print()
-
-fig, ax = plt.subplots(figsize=(9, 5))
-ax.barh(
-    range(top_shap_n),
-    mean_abs_shap[shap_order[:top_shap_n]][::-1],
-)
-ax.set_yticks(range(top_shap_n))
-ax.set_yticklabels([bc.feature_names[i] for i in shap_order[:top_shap_n]][::-1])
-ax.set_xlabel("Mean |Shapley value| (log-odds units)")
-ax.set_title(f"Shapley Summary — Top {top_shap_n} Features")
-fig.tight_layout()
-plt.show()
-```
-
 **Waterfall chart for a single prediction:**
 
 ```python
-sample_idx = 0
-sv         = shap_vals[sample_idx]
-order      = np.argsort(np.abs(sv))[::-1][:10]    # top-10 contributors
+sample_idx = 1  # malignant sample — features push mostly in one direction for a clean cascade
+sv    = shap_vals[sample_idx]
+order = np.argsort(np.abs(sv))[::-1][:10]    # top-10, largest |sv| first
+
 running    = base_value + np.cumsum(sv[order])
 starts     = np.concatenate([[base_value], running[:-1]])
 bar_colors = ["steelblue" if v > 0 else "tomato" for v in sv[order]]
 
+y_pos = list(range(len(order) - 1, -1, -1))  # largest at top
+
 fig, ax = plt.subplots(figsize=(10, 5))
-ax.barh(
-    range(len(order)),
-    sv[order][::-1],
-    left=starts[::-1],
-    color=bar_colors[::-1],
-)
-ax.set_yticks(range(len(order)))
-ax.set_yticklabels([bc.feature_names[i] for i in order][::-1])
+ax.barh(y_pos, sv[order], left=starts, color=bar_colors)
+ax.set_yticks(y_pos)
+ax.set_yticklabels(bc.feature_names[order])
 ax.axvline(base_value, color="black", linewidth=0.8, linestyle="--",
            label=f"baseline = {base_value:.2f}")
 ax.set_xlabel("Log-odds")

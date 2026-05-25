@@ -614,108 +614,7 @@ for cls, prob in zip(bc.target_names, probabilities):
     print(f"  {cls:<12} {prob:.2%}")
 
 # =============================================================================
-# Step 11 — DPL: Difference in Proportions of Labels
-# =============================================================================
-# <details>
-# <summary>Solution</summary>
-#
-# DPL measures whether two subgroups have different rates of positive outcomes
-# in the data (label DPL) and in the model's predictions (prediction DPL).
-# A DPL near zero means the model treats both groups similarly; a large absolute
-# DPL flags potential disparate impact worth investigating.
-#
-# The Breast Cancer dataset has no demographic features, so we construct a binary
-# group by splitting on median mean_area: "small tumour" vs "large tumour".
-# Clinically, larger tumours are associated with malignancy, so we expect the
-# large-tumour group to have a lower benign rate — a data-level disparity that
-# the model may amplify or mitigate.
-#
-# DPL_labels = P(y=benign | large) − P(y=benign | small)
-# DPL_preds  = P(ŷ=benign | large) − P(ŷ=benign | small)
-#
-# # --- build groups ---
-# area_median  = np.median(X_train[:, 3])          # mean_area, feature index 3
-# grp_train    = (X_train[:, 3] >= area_median).astype(int)   # 1=large, 0=small
-# grp_test     = (X_test[:, 3]  >= area_median).astype(int)
-#
-# # --- label DPL (training data) ---
-# p_label_large = y_train[grp_train == 1].mean()
-# p_label_small = y_train[grp_train == 0].mean()
-# dpl_labels    = p_label_large - p_label_small
-#
-# # --- prediction DPL (test data) ---
-# p_pred_large  = y_pred[grp_test == 1].mean()
-# p_pred_small  = y_pred[grp_test == 0].mean()
-# dpl_preds     = p_pred_large - p_pred_small
-#
-# print("=== DPL: Difference in Proportions of Labels ===")
-# print(f"  Group split: mean_area median = {area_median:.1f}")
-# print(f"  Training set — P(benign | large): {p_label_large:.3f}   "
-#       f"P(benign | small): {p_label_small:.3f}   DPL = {dpl_labels:+.3f}")
-# print(f"  Test set     — P(ŷ=benign | large): {p_pred_large:.3f}   "
-#       f"P(ŷ=benign | small): {p_pred_small:.3f}   DPL = {dpl_preds:+.3f}\n")
-#
-# fig, axes = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
-# for ax, (title, vals) in zip(axes, [
-#     ("Ground-truth labels (train)", [p_label_small, p_label_large]),
-#     ("Model predictions (test)",    [p_pred_small,  p_pred_large]),
-# ]):
-#     bars = ax.bar(["small tumour\n(below median)", "large tumour\n(above median)"],
-#                   vals, color=["steelblue", "tomato"], width=0.5)
-#     ax.bar_label(bars, fmt="{:.3f}", padding=3)
-#     ax.set_ylim(0, 1.1)
-#     ax.set_ylabel("P(benign)")
-#     ax.set_title(title)
-#     ax.axhline(0.5, color="grey", linestyle="--", linewidth=0.8)
-# fig.suptitle("DPL: Proportion of Benign by Tumour-Size Group")
-# fig.tight_layout()
-# plt.show()
-#
-# A negative DPL confirms that large-tumour samples are less frequently benign —
-# both in the data and in the model's predictions. If the model's DPL magnitude
-# exceeds the data's DPL, the model is amplifying the disparity beyond what the
-# labels alone justify, which warrants further fairness investigation.
-# </details>
-
-area_median = np.median(X_train[:, 3])
-grp_train   = (X_train[:, 3] >= area_median).astype(int)
-grp_test    = (X_test[:, 3]  >= area_median).astype(int)
-
-p_label_large = y_train[grp_train == 1].mean()
-p_label_small = y_train[grp_train == 0].mean()
-dpl_labels    = p_label_large - p_label_small
-
-p_pred_large  = y_pred[grp_test == 1].mean()
-p_pred_small  = y_pred[grp_test == 0].mean()
-dpl_preds     = p_pred_large - p_pred_small
-
-print("=== DPL: Difference in Proportions of Labels ===")
-print(f"  Group split: mean_area median = {area_median:.1f}")
-print(f"  Training set — P(benign | large): {p_label_large:.3f}   "
-      f"P(benign | small): {p_label_small:.3f}   DPL = {dpl_labels:+.3f}")
-print(f"  Test set     — P(ŷ=benign | large): {p_pred_large:.3f}   "
-      f"P(ŷ=benign | small): {p_pred_small:.3f}   DPL = {dpl_preds:+.3f}\n")
-
-fig, axes = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
-for ax, (title, vals) in zip(axes, [
-    ("Ground-truth labels (train)", [p_label_small, p_label_large]),
-    ("Model predictions (test)",    [p_pred_small,  p_pred_large]),
-]):
-    bars = ax.bar(
-        ["small tumour\n(below median)", "large tumour\n(above median)"],
-        vals, color=["steelblue", "tomato"], width=0.5,
-    )
-    ax.bar_label(bars, fmt="{:.3f}", padding=3)
-    ax.set_ylim(0, 1.1)
-    ax.set_ylabel("P(benign)")
-    ax.set_title(title)
-    ax.axhline(0.5, color="grey", linestyle="--", linewidth=0.8)
-fig.suptitle("DPL: Proportion of Benign by Tumour-Size Group")
-fig.tight_layout()
-plt.show()
-
-# =============================================================================
-# Step 12 — Partial Dependence Plots (PDPs)
+# Step 11 — Partial Dependence Plots (PDPs)
 # =============================================================================
 # <details>
 # <summary>Solution</summary>
@@ -772,21 +671,23 @@ pipe = make_pipeline(
 pipe.fit(X_train, y_train)
 
 top4 = sorted_idx[:4].tolist()
+best_positive = 15  # compactness error — strongest positive coefficient (+0.68), slopes upward
+pdp_features = top4 + [best_positive]
 
-fig, axes = plt.subplots(1, 4, figsize=(16, 4))
+fig, axes = plt.subplots(1, 5, figsize=(20, 4))
 PartialDependenceDisplay.from_estimator(
     pipe, X_train,
-    features=top4,
+    features=pdp_features,
     feature_names=bc.feature_names,
     ax=axes,
     grid_resolution=100,
 )
-fig.suptitle("Partial Dependence Plots — Top 4 Features (P(benign))")
+fig.suptitle("Partial Dependence Plots — Top 4 Features + compactness error (P(benign))")
 fig.tight_layout()
 plt.show()
 
 # =============================================================================
-# Step 13 — Shapley Values
+# Step 12 — Shapley Values
 # =============================================================================
 # <details>
 # <summary>Solution</summary>
@@ -822,48 +723,23 @@ plt.show()
 # residuals  = np.abs(log_odds - (base_value + shap_vals.sum(axis=1)))
 # print(f"Max reconstruction error: {residuals.max():.2e}  (should be ~0)\n")
 #
-# # --- Summary bar chart: mean |Shapley| per feature ---
-# mean_abs_shap = np.abs(shap_vals).mean(axis=0)
-# shap_order    = np.argsort(mean_abs_shap)[::-1]
-# top_shap_n    = 15
-#
-# print("=== Shapley Values — Mean |φⱼ| across test set ===")
-# for rank, idx in enumerate(shap_order[:top_shap_n], 1):
-#     print(f"  {rank:2}. {bc.feature_names[idx]:<35} mean |φ| = {mean_abs_shap[idx]:.4f}")
-# print()
-#
-# fig, ax = plt.subplots(figsize=(9, 5))
-# ax.barh(
-#     range(top_shap_n),
-#     mean_abs_shap[shap_order[:top_shap_n]][::-1],
-# )
-# ax.set_yticks(range(top_shap_n))
-# ax.set_yticklabels([bc.feature_names[i] for i in shap_order[:top_shap_n]][::-1])
-# ax.set_xlabel("Mean |Shapley value| (log-odds units)")
-# ax.set_title(f"Shapley Summary — Top {top_shap_n} Features")
-# fig.tight_layout()
-# plt.show()
-#
 # # --- Waterfall plot for a single prediction ---
 # # A waterfall chart shows how each feature pushes the log-odds above or below
 # # the baseline for one specific sample.
 #
-# sample_idx  = 0   # first test sample
+# sample_idx  = 1   # malignant sample — clean cascade
 # sv          = shap_vals[sample_idx]
-# order       = np.argsort(np.abs(sv))[::-1][:10]   # top-10 contributors
+# order       = np.argsort(np.abs(sv))[::-1][:10]   # top-10, largest |sv| first
 # running     = base_value + np.cumsum(sv[order])
 # starts      = np.concatenate([[base_value], running[:-1]])
 # bar_colors  = ["steelblue" if v > 0 else "tomato" for v in sv[order]]
 #
+# y_pos = list(range(len(order) - 1, -1, -1))  # largest at top
+#
 # fig, ax = plt.subplots(figsize=(10, 5))
-# ax.barh(
-#     range(len(order)),
-#     sv[order][::-1],
-#     left=starts[::-1],
-#     color=bar_colors[::-1],
-# )
-# ax.set_yticks(range(len(order)))
-# ax.set_yticklabels([bc.feature_names[i] for i in order][::-1])
+# ax.barh(y_pos, sv[order], left=starts, color=bar_colors)
+# ax.set_yticks(y_pos)
+# ax.set_yticklabels(bc.feature_names[order])
 # ax.axvline(base_value, color="black", linewidth=0.8, linestyle="--",
 #            label=f"baseline = {base_value:.2f}")
 # ax.set_xlabel("Log-odds")
@@ -873,8 +749,7 @@ plt.show()
 # fig.tight_layout()
 # plt.show()
 #
-# The waterfall chart is the per-sample complement to the summary bar chart:
-# it explains a single prediction rather than average behaviour. Each bar
+# The waterfall chart explains a single prediction. Each bar
 # starts where the previous one ended — blue bars push the log-odds higher
 # (toward benign), red bars push it lower (toward malignant). The final
 # log-odds value maps through the sigmoid to the model's output probability.
@@ -888,43 +763,21 @@ log_odds  = lr.decision_function(X_test_sc)
 residuals = np.abs(log_odds - (base_value + shap_vals.sum(axis=1)))
 print(f"Shapley reconstruction error (max): {residuals.max():.2e}  (should be ~0)\n")
 
-mean_abs_shap = np.abs(shap_vals).mean(axis=0)
-shap_order    = np.argsort(mean_abs_shap)[::-1]
-top_shap_n    = 15
+sample_idx = 1  # malignant sample — features push mostly in one direction for a clean cascade
+sv    = shap_vals[sample_idx]
+order = np.argsort(np.abs(sv))[::-1][:10]   # largest |sv| first
 
-print("=== Shapley Values — Mean |φⱼ| across test set ===")
-for rank, idx in enumerate(shap_order[:top_shap_n], 1):
-    print(f"  {rank:2}. {bc.feature_names[idx]:<35} mean |φ| = {mean_abs_shap[idx]:.4f}")
-print()
-
-fig, ax = plt.subplots(figsize=(9, 5))
-ax.barh(
-    range(top_shap_n),
-    mean_abs_shap[shap_order[:top_shap_n]][::-1],
-)
-ax.set_yticks(range(top_shap_n))
-ax.set_yticklabels([bc.feature_names[i] for i in shap_order[:top_shap_n]][::-1])
-ax.set_xlabel("Mean |Shapley value| (log-odds units)")
-ax.set_title(f"Shapley Summary — Top {top_shap_n} Features")
-fig.tight_layout()
-plt.show()
-
-sample_idx = 0
-sv         = shap_vals[sample_idx]
-order      = np.argsort(np.abs(sv))[::-1][:10]
 running    = base_value + np.cumsum(sv[order])
 starts     = np.concatenate([[base_value], running[:-1]])
 bar_colors = ["steelblue" if v > 0 else "tomato" for v in sv[order]]
 
+# largest feature at top (y=9), smallest at bottom (y=0)
+y_pos = list(range(len(order) - 1, -1, -1))
+
 fig, ax = plt.subplots(figsize=(10, 5))
-ax.barh(
-    range(len(order)),
-    sv[order][::-1],
-    left=starts[::-1],
-    color=bar_colors[::-1],
-)
-ax.set_yticks(range(len(order)))
-ax.set_yticklabels([bc.feature_names[i] for i in order][::-1])
+ax.barh(y_pos, sv[order], left=starts, color=bar_colors)
+ax.set_yticks(y_pos)
+ax.set_yticklabels(bc.feature_names[order])
 ax.axvline(base_value, color="black", linewidth=0.8, linestyle="--",
            label=f"baseline = {base_value:.2f}")
 ax.set_xlabel("Log-odds")
