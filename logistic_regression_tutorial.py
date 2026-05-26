@@ -211,7 +211,8 @@ from sklearn.metrics import (
 bc = load_breast_cancer()
 
 X = bc.data
-y = bc.target
+y = bc.target  # 0=malignant, 1=benign — sklearn's encoding is inverted from clinical convention
+               # (clinically, malignant is "positive", but here it is encoded as 0)
 
 print("=== Dataset Overview ===")
 print(f"Samples:  {X.shape[0]}")

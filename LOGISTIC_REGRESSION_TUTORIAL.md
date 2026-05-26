@@ -135,7 +135,8 @@ Load the Breast Cancer Wisconsin dataset. Assign the feature matrix to `X` and t
 bc = load_breast_cancer()
 
 X = bc.data    # shape: (569, 30) — cell nucleus measurements
-y = bc.target  # 0=malignant, 1=benign
+y = bc.target  # 0=malignant, 1=benign — sklearn's encoding is inverted from clinical convention
+               # (clinically, malignant is "positive", but here it is encoded as 0)
 
 print("=== Dataset Overview ===")
 print(f"Samples:  {X.shape[0]}")
