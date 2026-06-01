@@ -81,44 +81,52 @@ deactivate
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.datasets import load_iris
+from sklearn.datasets import make_blobs
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
-from sklearn.decomposition import PCA
-from sklearn.metrics import silhouette_score, adjusted_rand_score
+from sklearn.metrics import silhouette_score
 ```
 
 - **numpy** — numerical operations and array handling
 - **matplotlib** — plotting and visualisation
-- **sklearn.datasets** — built-in datasets (Iris)
+- **sklearn.datasets** — synthetic data generator (`make_blobs`)
 - **sklearn.preprocessing** — feature scaling
 - **sklearn.cluster** — the K-means model
-- **sklearn.decomposition** — PCA for 2-D visualisation
 - **sklearn.metrics** — silhouette score and Adjusted Rand Index
 
 ---
 
-## Step 1 — Load & Explore the Data
+## Step 1 — Generate & Explore the Data
 
-Load the Iris dataset. Assign the feature matrix to `X` and note that `y` (the true species labels) are kept hidden during training — K-means is unsupervised and does not use them. Print the number of samples, the feature names, and the class distribution.
+Use `make_blobs` to generate 300 samples with 3 clusters, a cluster standard deviation of 0.8, and `random_state=42`. Print the number of samples, features, and true cluster sizes. Then plot the raw data as a scatter plot **without** revealing the true labels.
 
 <details>
 <summary>Solution</summary>
 
 ```python
-iris = load_iris()
-
-X = iris.data    # shape: (150, 4) — we cluster on these
-y = iris.target  # 0=setosa, 1=versicolor, 2=virginica — hidden during training
+X, y = make_blobs(n_samples=300, centers=3, cluster_std=0.8, random_state=42)
+# X: shape (300, 2) — two features, ready to plot directly
+# y: true cluster labels (0, 1, 2) — hidden during fitting, used for evaluation
 
 print("=== Dataset Overview ===")
 print(f"Samples:  {X.shape[0]}")
-print(f"Features: {X.shape[1]}  ->  {list(iris.feature_names)}")
-print(f"True classes (hidden during training): {iris.target_names}")
-print(f"Class distribution: {np.bincount(y)}\n")
+print(f"Features: {X.shape[1]}")
+print(f"True cluster sizes: {np.bincount(y)}\n")
+
+fig, ax = plt.subplots(figsize=(6, 5))
+ax.scatter(X[:, 0], X[:, 1], alpha=0.6, edgecolors="k", linewidths=0.3)
+ax.set_title("Raw Data (no labels shown)")
+ax.set_xlabel("Feature 1")
+ax.set_ylabel("Feature 2")
+fig.tight_layout()
+plt.show()
 ```
 
-The Iris dataset has 150 samples across 3 species, each described by 4 measurements. Because K-means is unsupervised, `y` is not passed to the model. We only use it later to evaluate how well the discovered clusters align with the true biological species.
+**`make_blobs`** generates isotropic Gaussian clusters — each cluster is a spherical cloud of points drawn from a normal distribution centred at a randomly placed centroid. This matches K-means' assumptions well, making it an ideal dataset for learning the algorithm.
+
+**`cluster_std=0.8`** controls the spread of each cluster. Lower values produce tighter, more obviously separated blobs; higher values produce overlap that makes clustering harder.
+
+The raw scatter plot is plotted **without labels** to simulate the real unsupervised scenario — the algorithm must discover the groups from geometry alone.
 
 </details>
 
@@ -140,47 +148,72 @@ print(f"Before — mean: {X[:, 0].mean():.3f}  std: {X[:, 0].std():.3f}")
 print(f"After  — mean: {X_scaled[:, 0].mean():.3f}  std: {X_scaled[:, 0].std():.3f}\n")
 ```
 
-K-means assigns each sample to the nearest centroid using **Euclidean distance**. A feature measured in larger units (e.g. sepal length in centimetres vs. a feature in millimetres) would dominate the distance calculation simply because its values are numerically larger — not because it is more informative. Standardising all features to zero mean and unit variance puts them on an equal footing.
+K-means assigns each sample to the nearest centroid using **Euclidean distance**. A feature measured in a larger numeric range dominates the distance calculation simply because its values are numerically larger — not because it is more informative. Standardising all features to zero mean and unit variance puts them on an equal footing.
+
+For `make_blobs` both features happen to be on a similar scale, so the effect is modest here. In real datasets (e.g. age vs. income) the difference is dramatic and skipping this step would produce meaningless clusters.
 
 </details>
 
 ---
 
-## Step 3 — Choose K: the Elbow Method
+## Step 3 — Choose K: Elbow + Silhouette
 
-Train K-means models for K from 1 to 10. Record the inertia for each K and plot it. In 2–3 sentences, describe what the elbow method reveals and what K you would choose for the Iris dataset.
+Fit K-means for K from 2 to 10. For each K record both the inertia and the silhouette score, print the results, and plot both as a side-by-side figure. Identify the best K from the silhouette score. In 2–3 sentences, explain what each method shows and how they complement each other.
 
 <details>
 <summary>Solution</summary>
 
 ```python
-print("=== Elbow Method ===")
-k_range = range(1, 11)
-inertias = []
+print("=== Choosing K ===")
+k_range = range(2, 11)
+inertias, sil_scores = [], []
 
 for k in k_range:
-    km = KMeans(n_clusters=k, random_state=42, n_init=10)
-    km.fit(X_scaled)
-    inertias.append(km.inertia_)
-    print(f"  k={k:2d}  inertia={km.inertia_:.2f}")
+    km_k = KMeans(n_clusters=k, random_state=42, n_init=10)
+    labels_k = km_k.fit_predict(X_scaled)
+    inertias.append(km_k.inertia_)
+    sil_scores.append(silhouette_score(X_scaled, labels_k))
+    print(f"  k={k:2d}  inertia={km_k.inertia_:7.2f}  silhouette={sil_scores[-1]:.4f}")
 
-fig, ax = plt.subplots(figsize=(7, 4))
-ax.plot(k_range, inertias, marker="o")
-ax.set_xlabel("Number of clusters (K)")
-ax.set_ylabel("Inertia")
-ax.set_title("Elbow Method — Choosing K")
-ax.grid(True, linestyle="--", alpha=0.5)
+best_k = k_range.start + int(np.argmax(sil_scores))
+print(f"\n  Best K by silhouette: {best_k}\n")
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+axes[0].plot(k_range, inertias, marker="o")
+axes[0].set_xlabel("Number of clusters (K)")
+axes[0].set_ylabel("Inertia")
+axes[0].set_title("Elbow Method")
+axes[0].grid(True, linestyle="--", alpha=0.5)
+
+axes[1].plot(k_range, sil_scores, marker="o")
+axes[1].set_xlabel("Number of clusters (K)")
+axes[1].set_ylabel("Silhouette score")
+axes[1].set_title("Silhouette Method")
+axes[1].grid(True, linestyle="--", alpha=0.5)
+
+fig.suptitle("Choosing K")
 fig.tight_layout()
 plt.show()
 ```
 
-Inertia always decreases as K increases — with K equal to the number of samples, every point is its own cluster and inertia is zero. The useful signal is the **rate of decrease**: it is steep at low K (adding clusters provides large gains) and flattens at higher K (diminishing returns). The point where the curve bends — the "elbow" — marks a reasonable K. For the Iris dataset the elbow appears at **K=3**, consistent with the three known species.
+The **elbow method** plots inertia against K and looks for the point where the rate of decrease sharply slows — the "elbow". It provides good visual intuition but requires a subjective judgement call, and the bend is often gradual rather than sharp in real data.
+
+The **silhouette score** for a sample *i* is:
+
+```
+s(i) = (b(i) − a(i)) / max(a(i), b(i))
+```
+
+Where `a(i)` is the mean distance to other points in the same cluster and `b(i)` is the mean distance to points in the nearest other cluster. A score near **1** means the sample sits deep inside its cluster and far from others; near **0** means it sits on a boundary; **negative** means it was likely assigned to the wrong cluster. The overall score averages this across all samples.
+
+The two methods complement each other: the elbow gives intuition about diminishing returns from adding clusters, while the silhouette provides an objective maximum — just pick the highest value. With `make_blobs` both methods agree clearly on **K=3**: the elbow shows a sharp drop in inertia at K=3 followed by near-flat gains, and the silhouette peaks at K=3.
 
 </details>
 
 ---
 
-## Step 4 — Train K-Means with K=3
+## Step 4 — Fit K-Means with K=3
 
 Fit a `KMeans` model with 3 clusters, `random_state=42`, and `n_init=10`. Print the cluster sizes and the final inertia.
 
@@ -190,16 +223,16 @@ Fit a `KMeans` model with 3 clusters, `random_state=42`, and `n_init=10`. Print 
 ```python
 km = KMeans(n_clusters=3, random_state=42, n_init=10)
 km.fit(X_scaled)
-labels = km.labels_   # cluster assignment for each sample (0, 1, or 2)
+labels = km.labels_
 
-print("\n=== K-Means (k=3) ===")
+print("=== K-Means (k=3) ===")
 print(f"Cluster sizes: {np.bincount(labels)}")
 print(f"Inertia:       {km.inertia_:.4f}\n")
 ```
 
-**`n_init=10`** runs the algorithm 10 times with different random centroid initialisations and keeps the solution with the lowest inertia. This guards against the algorithm converging to a poor local optimum.
+**`n_init=10`** runs the algorithm 10 times with different random centroid initialisations and keeps the solution with the lowest inertia. This guards against converging to a poor local optimum — K-means is not convex and different starting points can produce different results.
 
-**`km.labels_`** contains the cluster index (0, 1, or 2) assigned to each of the 150 samples. Note that cluster indices are arbitrary — cluster 0 does not necessarily correspond to species 0 (setosa).
+**`km.labels_`** contains the cluster index (0, 1, or 2) assigned to each of the 300 samples. Cluster indices are arbitrary — cluster 0 does not necessarily correspond to the first true cluster.
 
 </details>
 
@@ -207,25 +240,17 @@ print(f"Inertia:       {km.inertia_:.4f}\n")
 
 ## Step 5 — Visualise the Clusters
 
-K-means operates in 4-D feature space, which cannot be plotted directly. Use PCA to project the scaled data down to 2 components and produce a side-by-side figure:
+Because `make_blobs` generates 2-D data, you can plot the clusters directly — no PCA needed. Produce a side-by-side figure:
 
 - **Left** — scatter plot coloured by K-means cluster label, with centroids marked
-- **Right** — same projection coloured by true species label
+- **Right** — same data coloured by true label
 
-Print the variance explained by each principal component. In 1–2 sentences, compare the two plots.
+In 1–2 sentences, compare the two plots.
 
 <details>
 <summary>Solution</summary>
 
 ```python
-pca = PCA(n_components=2, random_state=42)
-X_2d = pca.fit_transform(X_scaled)
-
-print("=== PCA ===")
-print(f"Variance explained: PC1={pca.explained_variance_ratio_[0]:.1%}  "
-      f"PC2={pca.explained_variance_ratio_[1]:.1%}  "
-      f"Total={sum(pca.explained_variance_ratio_):.1%}\n")
-
 colors = ["steelblue", "tomato", "seagreen"]
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 5))
@@ -234,79 +259,45 @@ fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 for cluster in range(3):
     mask = labels == cluster
     axes[0].scatter(
-        X_2d[mask, 0], X_2d[mask, 1],
+        X_scaled[mask, 0], X_scaled[mask, 1],
         c=colors[cluster], label=f"Cluster {cluster}",
         alpha=0.7, edgecolors="k", linewidths=0.3,
     )
-centroids_2d = pca.transform(km.cluster_centers_)
 axes[0].scatter(
-    centroids_2d[:, 0], centroids_2d[:, 1],
+    km.cluster_centers_[:, 0], km.cluster_centers_[:, 1],
     c="black", marker="X", s=120, label="Centroid", zorder=5,
 )
-axes[0].set_title("K-Means Clusters (PCA projection)")
-axes[0].set_xlabel("PC1")
-axes[0].set_ylabel("PC2")
+axes[0].set_title("K-Means Clusters")
+axes[0].set_xlabel("Feature 1 (scaled)")
+axes[0].set_ylabel("Feature 2 (scaled)")
 axes[0].legend()
 
-# Right: true species labels
-for species in range(3):
-    mask = y == species
+# Right: true labels
+for cluster in range(3):
+    mask = y == cluster
     axes[1].scatter(
-        X_2d[mask, 0], X_2d[mask, 1],
-        c=colors[species], label=iris.target_names[species],
+        X_scaled[mask, 0], X_scaled[mask, 1],
+        c=colors[cluster], label=f"True cluster {cluster}",
         alpha=0.7, edgecolors="k", linewidths=0.3,
     )
-axes[1].set_title("True Species Labels (PCA projection)")
-axes[1].set_xlabel("PC1")
-axes[1].set_ylabel("PC2")
+axes[1].set_title("True Cluster Labels")
+axes[1].set_xlabel("Feature 1 (scaled)")
+axes[1].set_ylabel("Feature 2 (scaled)")
 axes[1].legend()
 
 fig.tight_layout()
 plt.show()
 ```
 
-The two PCA components together capture around **97%** of the total variance, making the 2-D projection a faithful representation of the original 4-D structure. Comparing the two plots shows that K-means recovers the *setosa* cluster perfectly (it is linearly separable) but makes some mistakes on the boundary between *versicolor* and *virginica*, which overlap in feature space.
+The two plots should look nearly identical — K-means recovers the true cluster structure almost perfectly because `make_blobs` generates well-separated spherical clusters that match K-means' assumptions. The centroids (black X markers) sit at the geometric centre of each cluster.
 
 </details>
 
 ---
 
-## Step 6 — Evaluate
+## Step 6 — Effect of K
 
-Compute two evaluation metrics and print them with a short interpretation:
-
-- **Silhouette score** — measures how tight and well-separated the clusters are, purely from the data geometry (no labels needed)
-- **Adjusted Rand Index (ARI)** — compares the cluster assignments to the true labels, correcting for chance
-
-<details>
-<summary>Solution</summary>
-
-```python
-sil = silhouette_score(X_scaled, labels)
-ari = adjusted_rand_score(y, labels)
-
-print("=== Evaluation ===")
-print(f"Silhouette score:    {sil:.4f}  (range −1 to 1, higher = better separated clusters)")
-print(f"Adjusted Rand Index: {ari:.4f}  (range  0 to 1, higher = closer to true labels)\n")
-```
-
-**Silhouette score** for sample *i* is:
-
-```
-s(i) = (b(i) − a(i)) / max(a(i), b(i))
-```
-
-Where `a(i)` is the mean distance to other points in the same cluster and `b(i)` is the mean distance to points in the nearest other cluster. A score near 1 means the sample is well inside its cluster and far from others; near 0 means it sits on a boundary; negative means it was likely assigned to the wrong cluster. The overall score averages this across all samples.
-
-**Adjusted Rand Index** measures the overlap between two partitions of the same data — here, the K-means labels vs. the true species. It is adjusted for chance so that a random assignment scores near 0, and a perfect match scores 1.0. Unlike silhouette score, ARI requires ground-truth labels and cannot be used in a pure unsupervised setting.
-
-</details>
-
----
-
-## Step 7 — Effect of K
-
-Train K-means with K=2, K=3, and K=5. For each, produce a scatter plot of the PCA projection and print the silhouette score in the title. In 2–3 sentences, describe what happens to the clusters and the silhouette score as K moves away from 3.
+Fit K-means with K=2, K=3, and K=5. For each, produce a scatter plot with the silhouette score in the title. In 2–3 sentences, describe what happens to the clusters and the silhouette score as K moves away from 3.
 
 <details>
 <summary>Solution</summary>
@@ -320,41 +311,43 @@ for ax, k in zip(axes, [2, 3, 5]):
     for cluster in range(k):
         mask = labels_k == cluster
         ax.scatter(
-            X_2d[mask, 0], X_2d[mask, 1],
+            X_scaled[mask, 0], X_scaled[mask, 1],
             alpha=0.7, edgecolors="k", linewidths=0.3,
         )
-    centroids_k = pca.transform(km_k.cluster_centers_)
-    ax.scatter(centroids_k[:, 0], centroids_k[:, 1], c="black", marker="X", s=120, zorder=5)
+    ax.scatter(
+        km_k.cluster_centers_[:, 0], km_k.cluster_centers_[:, 1],
+        c="black", marker="X", s=120, zorder=5,
+    )
     ax.set_title(f"K={k}  |  silhouette={sil_k:.3f}")
-    ax.set_xlabel("PC1")
-    ax.set_ylabel("PC2")
+    ax.set_xlabel("Feature 1 (scaled)")
+    ax.set_ylabel("Feature 2 (scaled)")
 
 fig.suptitle("Effect of K on Clustering")
 fig.tight_layout()
 plt.show()
 ```
 
-With **K=2** the algorithm merges *versicolor* and *virginica* into one cluster — it underfits the structure and the silhouette score is lower. With **K=5** it splits the natural groups into artificial sub-clusters that have no biological meaning — inertia drops but the silhouette score also falls because the extra clusters cut through dense regions rather than separating genuinely distinct groups. **K=3** hits the right balance, confirming the elbow method's recommendation.
+With **K=2** the algorithm merges two of the true clusters into one — the silhouette score drops because many points end up far from their centroid. With **K=5** the algorithm splits natural clusters in half, creating artificial boundaries through dense regions — the silhouette score also drops because points that belong together are separated. **K=3** achieves the highest score by matching the true structure of the data.
 
 </details>
 
 ---
 
-## Step 8 — Make a Single Prediction (Assign New Sample)
+## Step 7 — Make a Single Prediction (Assign New Sample)
 
-Using the trained K=3 model, assign a new flower sample to a cluster. Use the same measurements as in the decision tree tutorial: sepal length=5.1, sepal width=3.5, petal length=1.4, petal width=0.2. Print the assigned cluster and the distance to every centroid.
+Assign a new data point at coordinates (0.0, 4.0) to a cluster. Remember to scale the new point using the same scaler fitted on the training data. Print the assigned cluster and the distance to every centroid.
 
 <details>
 <summary>Solution</summary>
 
 ```python
-sample = np.array([[5.1, 3.5, 1.4, 0.2]])   # new, unseen flower
+sample = np.array([[0.0, 4.0]])
 sample_scaled = scaler.transform(sample)
 cluster_id = km.predict(sample_scaled)[0]
-distances  = km.transform(sample_scaled)[0]  # distance to each centroid
+distances  = km.transform(sample_scaled)[0]
 
 print("=== Single Prediction ===")
-print("Input: sepal_length=5.1, sepal_width=3.5, petal_length=1.4, petal_width=0.2")
+print(f"Input: Feature1=0.0, Feature2=4.0")
 print(f"Assigned to cluster: {cluster_id}")
 print("Distances to all centroids:")
 for i, d in enumerate(distances):
@@ -362,10 +355,8 @@ for i, d in enumerate(distances):
     print(f"  Centroid {i}: {d:.4f}{marker}")
 ```
 
-**Important:** the new sample must be scaled with the **same scaler** fitted on the training data — `scaler.transform(sample)`, not `scaler.fit_transform(sample)`. Re-fitting on a single sample would compute nonsensical statistics.
+The new point must be scaled with `scaler.transform` — not `scaler.fit_transform` — so that it is shifted and scaled by the same training statistics. Re-fitting on a single point would produce meaningless statistics.
 
-`km.transform` returns the distance from the sample to every centroid. The model assigns the sample to the centroid with the smallest distance. These distances are also useful as a soft confidence measure — a sample very close to one centroid and far from all others is a clear cluster member, while a sample equidistant from two centroids sits on a boundary and its assignment is less certain.
-
-This sample (short petals, narrow petals) is characteristic of *Iris setosa* and should be assigned to the cluster that most closely corresponds to setosa.
+`km.transform` returns the distance from the new point to every centroid. The model assigns it to the nearest one. These distances also serve as a confidence measure: a point very close to one centroid and far from all others is a clear cluster member; a point roughly equidistant from two centroids sits on a boundary and its assignment is less certain.
 
 </details>
