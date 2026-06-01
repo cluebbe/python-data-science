@@ -143,10 +143,10 @@ for cluster in range(3):
     mask = y == cluster
     axes[1].scatter(
         X_scaled[mask, 0], X_scaled[mask, 1],
-        c=colors[cluster], label=f"True cluster {cluster}",
+        c=colors[cluster], label=f"Origin {cluster}",
         alpha=0.7, edgecolors="k", linewidths=0.3,
     )
-axes[1].set_title("True Cluster Labels")
+axes[1].set_title("Ground Truth (known only because we generated the data)")
 axes[1].set_xlabel("Feature 1 (scaled)")
 axes[1].set_ylabel("Feature 2 (scaled)")
 axes[1].legend()

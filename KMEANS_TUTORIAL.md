@@ -243,7 +243,7 @@ print(f"Inertia:       {km.inertia_:.4f}\n")
 Because `make_blobs` generates 2-D data, you can plot the clusters directly — no PCA needed. Produce a side-by-side figure:
 
 - **Left** — scatter plot coloured by K-means cluster label, with centroids marked
-- **Right** — same data coloured by true label
+- **Right** — same data coloured by the origin assigned by `make_blobs` (only available because we generated the data ourselves — in a real unsupervised problem this plot would not exist)
 
 In 1–2 sentences, compare the two plots.
 
@@ -280,7 +280,7 @@ for cluster in range(3):
         c=colors[cluster], label=f"True cluster {cluster}",
         alpha=0.7, edgecolors="k", linewidths=0.3,
     )
-axes[1].set_title("True Cluster Labels")
+axes[1].set_title("Ground Truth (known only because we generated the data)")
 axes[1].set_xlabel("Feature 1 (scaled)")
 axes[1].set_ylabel("Feature 2 (scaled)")
 axes[1].legend()
@@ -288,6 +288,8 @@ axes[1].legend()
 fig.tight_layout()
 plt.show()
 ```
+
+**Note on colors:** the cluster indices (0, 1, 2) assigned by the algorithm are arbitrary — there is no reason cluster 0 should correspond to true label 0. Do not compare colors between the two plots. Compare the **geometric groupings** instead: does each blob of points stay together as one color in the left plot? If yes, the algorithm found the correct structure regardless of which color it used.
 
 The two plots should look nearly identical — K-means recovers the true cluster structure almost perfectly because `make_blobs` generates well-separated spherical clusters that match K-means' assumptions. The centroids (black X markers) sit at the geometric centre of each cluster.
 
