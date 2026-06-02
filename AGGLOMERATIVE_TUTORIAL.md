@@ -104,7 +104,7 @@ from scipy.cluster.hierarchy import dendrogram, linkage
 
 ## Step 1 — Generate & Explore the Data
 
-Use the same `make_blobs` setup as the K-means tutorial: 300 samples, 3 clusters, `cluster_std=0.8`, `random_state=42`. Print the number of samples and features, and plot the raw data without labels.
+Generate a synthetic dataset using `make_blobs` with 300 samples, 3 clusters, `cluster_std=0.8`, and `random_state=42`. Print the number of samples and features, and plot the raw data without labels.
 
 <details>
 <summary>Solution</summary>
