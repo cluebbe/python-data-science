@@ -13,7 +13,7 @@ A collection of hands-on workshop tutorials covering core machine learning and d
 | [Decision Trees](DECISION_TREE_TUTORIAL.md) | Build and visualise a decision tree classifier on the Iris dataset. Covers tree structure, feature importance, overfitting via depth control, and single predictions. | [.md](DECISION_TREE_TUTORIAL.md) · [.py](decision_tree_tutorial.py) |
 | [Logistic Regression](LOGISTIC_REGRESSION_TUTORIAL.md) | Train a logistic regression classifier on the breast cancer dataset. Covers feature scaling, evaluation metrics (accuracy, ROC-AUC, confusion matrix), coefficients, regularisation (C), partial dependence plots, and Shapley value waterfall charts. | [.md](LOGISTIC_REGRESSION_TUTORIAL.md) · [.py](logistic_regression_tutorial.py) |
 | [Random Forest](RANDOM_FOREST_TUTORIAL.md) | Extend decision trees to a random forest ensemble. Covers bagging, feature importance, out-of-bag error, and comparison with a single decision tree. | [.md](RANDOM_FOREST_TUTORIAL.md) · [.py](random_forest_tutorial.py) |
-| [Neural Network](neural-network/NEURAL_NETWORK_TUTORIAL.md) | Build and train a neural network from scratch on the MNIST handwritten digit dataset. Covers forward propagation, backpropagation, activation functions, and digit recognition. | [.md](neural-network/NEURAL_NETWORK_TUTORIAL.md) · [.py](neural-network/neural_net.py) |
+| [Neural Network](neural-network/NEURAL_NETWORK_TUTORIAL.md) | Build and train a neural network from scratch on the MNIST handwritten digit dataset. Covers forward propagation, backpropagation, activation functions, and digit recognition. | [.md](neural-network/NEURAL_NETWORK_TUTORIAL.md) · [.py](neural-network/run_net.py) |
 
 ### Unsupervised Learning
 
