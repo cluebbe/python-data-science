@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python + Google Maps</title>
+    <style>
+        body { margin: 0; font-family: Arial, sans-serif; }
+        #map { height: 100vh; width: 100%; }
+        .header {
+            position: absolute; top: 10px; left: 10px; background: white;
+            padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 1000;
+        }
+        .controls { background: white; padding: 12px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); margin-top: 10px; display: flex; gap: 10px; align-items: center; }
+        .results { background: white; padding: 12px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); margin-top: 10px; font-size: 12px; max-height: 200px; overflow-y: auto; }
+        .result-item { padding: 8px; border-bottom: 1px solid #eee; background: #f9f9f9; }
+        .result-item:last-child { border-bottom: none; }
+        .result-title { font-weight: bold; color: #333; }
+        .result-distance { color: #666; font-size: 11px; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h2>🚀 Python Flask + Google Maps</h2>
+    <p>{{ points|length }} custom data points loaded from Python</p>
+
+    <div class="controls">
+        <label>Mode:</label>
+        <div style="display: flex; gap: 10px;">
+            <label><input type="radio" name="mode" value="search" checked> Search</label>
+            <label><input type="radio" name="mode" value="classification"> Classification</label>
+        </div>
+    </div>
+
+    <div class="controls">
+        <label for="kNeighbors">K Neighbors:</label>
+        <input type="number" id="kNeighbors" value="3" min="1" max="10">
+    </div>
+
+    <div id="results" class="results" style="display: none;">
+        <strong id="resultsTitle">KNN Results:</strong>
+        <div id="resultsList"></div>
+    </div>
+    <p style="font-size: 12px; color: #666; margin-top: 10px;">
+        <span id="instructionText">Click on the map to find nearest neighbors</span>
+    </p>
+</div>
+
+<div id="map"></div>
+
+<script>
+    let map, clickMarker = null, resultMarkers = [];
+
+    function initMap() {
+        map = new google.maps.Map(document.getElementById("map"), {
+            zoom: 13,
+            center: { lat: 40.4168, lng: -3.7038 },
+            mapTypeId: "roadmap"
+        });
+
+        const mapPoints = {{ points | tojson | safe }};
+        mapPoints.forEach(p => {
+            const marker = new google.maps.Marker({
+                position: { lat: p.lat, lng: p.lng },
+                map: map,
+                title: p.title,
+                icon: p.icon
+            });
+            const info = new google.maps.InfoWindow({ content: `<h3>${p.title}</h3><p>${p.description}</p>` });
+            marker.addListener("click", () => info.open(map, marker));
+        });
+
+        map.addListener("click", e => {
+            const mode = document.querySelector('input[name="mode"]:checked').value;
+            if (mode === "search") performKNNSearch(e.latLng.lat(), e.latLng.lng());
+            else performKNNClassification(e.latLng.lat(), e.latLng.lng());
+        });
+    }
+
+    function performKNNSearch(lat, lng) {
+        const k = parseInt(document.getElementById("kNeighbors").value) || 3;
+        if (clickMarker) clickMarker.setMap(null);
+        clickMarker = new google.maps.Marker({ position: { lat, lng }, map, icon: "http://maps.google.com/mapfiles/ms/icons/yellow-dot.png" });
+
+        fetch("/knn_search", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lat, lng, k })
+        })
+        .then(r => r.json())
+        .then(data => displaySearchResults(data.neighbors));
+    }
+
+    function performKNNClassification(lat, lng) {
+        const k = parseInt(document.getElementById("kNeighbors").value) || 3;
+        if (clickMarker) clickMarker.setMap(null);
+        clickMarker = new google.maps.Marker({ position: { lat, lng }, map, icon: "http://maps.google.com/mapfiles/ms/icons/yellow-dot.png" });
+
+        fetch("/knn_classification", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lat, lng, k })
+        })
+        .then(r => r.json())
+        .then(data => displayClassificationResults(data));
+    }
+
+    function clearResults() {
+        resultMarkers.forEach(m => m.setMap(null));
+        resultMarkers = [];
+        document.getElementById("results").style.display = "none";
+    }
+
+    function displaySearchResults(neighbors) {
+        clearResults();
+        const list = document.getElementById("resultsList");
+        list.innerHTML = "";
+        neighbors.forEach((n, i) => {
+            const marker = new google.maps.Marker({ position: { lat: n.lat, lng: n.lng }, map, label: String(i+1) });
+            resultMarkers.push(marker);
+
+            const div = document.createElement("div");
+            div.className = "result-item";
+            div.innerHTML = `
+                <div class="result-title">${i+1}. ${n.title}</div>
+                <div class="result-distance">Distance: ${n.distance.toFixed(4)}°</div>
+                <div style="font-size:11px;color:#999;">${n.description}</div>`;
+            list.appendChild(div);
+        });
+        document.getElementById("results").style.display = "block";
+    }
+
+    function displayClassificationResults(data) {
+        clearResults();
+        const list = document.getElementById("resultsList");
+        list.innerHTML = "";
+
+        const predDiv = document.createElement("div");
+        predDiv.className = "result-item";
+        predDiv.innerHTML = `
+            <div class="result-title" style="color:#2e7d32;">Predicted Category: ${data.predicted_category}</div>
+            <div style="font-size:12px;margin:5px 0;">
+                <strong>Confidence:</strong><br>
+                Restaurant: ${(data.probabilities.restaurant*100).toFixed(1)}%<br>
+                Car Workshop: ${(data.probabilities.car_workshop*100).toFixed(1)}%
+            </div>`;
+        list.appendChild(predDiv);
+
+        if (data.similar_points.length) {
+            const header = document.createElement("div");
+            header.className = "result-item";
+            header.innerHTML = `<div class="result-title">Similar ${data.predicted_category} locations:</div>`;
+            list.appendChild(header);
+
+            data.similar_points.forEach((p, i) => {
+                const marker = new google.maps.Marker({
+                    position: { lat: p.lat, lng: p.lng },
+                    map,
+                    label: String(i+1),
+                    icon: data.predicted_category === "restaurant" ?
+                        "http://maps.google.com/mapfiles/ms/icons/red-dot.png" :
+                        "http://maps.google.com/mapfiles/ms/icons/green-dot.png"
+                });
+                resultMarkers.push(marker);
+
+                const div = document.createElement("div");
+                div.className = "result-item";
+                div.innerHTML = `
+                    <div class="result-title">${i+1}. ${p.title}</div>
+                    <div class="result-distance">Distance: ${p.distance.toFixed(4)}°</div>
+                    <div style="font-size:11px;color:#999;">${p.description}</div>`;
+                list.appendChild(div);
+            });
+        }
+        document.getElementById("results").style.display = "block";
+    }
+
+    window.addEventListener('load', () => {
+        document.querySelectorAll('input[name="mode"]').forEach(r => {
+            r.addEventListener('change', () => {
+                document.getElementById("instructionText").textContent =
+                    r.value === "search" ? "Click on the map to find nearest neighbors" : "Click on the map to classify the location";
+                document.getElementById("resultsTitle").textContent =
+                    r.value === "search" ? "KNN Search Results:" : "KNN Classification Results:";
+                clearResults();
+            });
+        });
+    });
+</script>
+
+<script async src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_key }}&callback=initMap"></script>
+</body>
+</html>
