@@ -24,14 +24,41 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # ------------------------------------------------------------
-# Step 1 — Build the GridWorld environment
+# Step 1 — Initialize and render the grid
 # ------------------------------------------------------------
-print("=== PART 1: The GridWorld Environment ===\n")
+print("=== PART 1: The GridWorld Layout ===\n")
 
 GRID_SIZE = 5
 START = (0, 0)
 GOAL = (4, 4)
 TRAP = (2, 2)
+
+
+def render_grid():
+    rows = []
+    for r in range(GRID_SIZE):
+        row_chars = []
+        for c in range(GRID_SIZE):
+            cell = (r, c)
+            if cell == START:
+                row_chars.append("S")
+            elif cell == GOAL:
+                row_chars.append("G")
+            elif cell == TRAP:
+                row_chars.append("X")
+            else:
+                row_chars.append(".")
+        rows.append(" ".join(row_chars))
+    return "\n".join(rows)
+
+
+print(render_grid())
+print("\nS = start, G = goal (+10), X = trap (-10), . = empty (-1 per step)\n")
+
+# ------------------------------------------------------------
+# Step 2 — Define the environment dynamics
+# ------------------------------------------------------------
+print("=== PART 2: Environment Dynamics ===\n")
 
 ACTIONS = ["up", "down", "left", "right"]
 ACTION_DELTAS = {
@@ -59,31 +86,14 @@ def step_env(state, action):
     return next_state, -1.0, False
 
 
-def render_grid():
-    rows = []
-    for r in range(GRID_SIZE):
-        row_chars = []
-        for c in range(GRID_SIZE):
-            cell = (r, c)
-            if cell == START:
-                row_chars.append("S")
-            elif cell == GOAL:
-                row_chars.append("G")
-            elif cell == TRAP:
-                row_chars.append("X")
-            else:
-                row_chars.append(".")
-        rows.append(" ".join(row_chars))
-    return "\n".join(rows)
-
-
-print(render_grid())
-print("\nS = start, G = goal (+10), X = trap (-10), . = empty (-1 per step)\n")
+example_state, example_reward, example_done = step_env(START, 3)
+print(f"From {START}, taking action 'right' -> next_state={example_state}, "
+      f"reward={example_reward}, done={example_done}\n")
 
 # ------------------------------------------------------------
-# Step 2 — Initialize the Q-table and hyperparameters
+# Step 3 — Initialize the Q-table and hyperparameters
 # ------------------------------------------------------------
-print("=== PART 2: Q-table and Hyperparameters ===\n")
+print("=== PART 3: Q-table and Hyperparameters ===\n")
 
 q_table = np.zeros((GRID_SIZE, GRID_SIZE, N_ACTIONS))
 
@@ -99,9 +109,9 @@ print(f"Q-table shape: {q_table.shape}  (rows x cols x actions)")
 print(f"alpha={ALPHA}, gamma={GAMMA}, episodes={N_EPISODES}\n")
 
 # ------------------------------------------------------------
-# Step 3 — Epsilon-greedy action selection
+# Step 4 — Epsilon-greedy action selection
 # ------------------------------------------------------------
-print("=== PART 3: Epsilon-Greedy Action Selection ===\n")
+print("=== PART 4: Epsilon-Greedy Action Selection ===\n")
 
 
 def choose_action(state, q_table, epsilon):
@@ -120,9 +130,9 @@ print(f"(expected ~{demo_epsilon * 3 / 4:.3f}, since 3 of 4 actions are non-zero
       f"all-zero Q-table always exploits to action 0)\n")
 
 # ------------------------------------------------------------
-# Step 4 — Train the agent
+# Step 5 — Train the agent
 # ------------------------------------------------------------
-print("=== PART 4: Training the Agent ===\n")
+print("=== PART 5: Training the Agent ===\n")
 
 np.random.seed(42)
 q_table = np.zeros((GRID_SIZE, GRID_SIZE, N_ACTIONS))
@@ -157,7 +167,7 @@ print(f"Average reward, last 10 episodes  : {np.mean(rewards_per_episode[-10:]):
 print(f"Final epsilon                     : {epsilon:.4f}\n")
 
 # ------------------------------------------------------------
-# Step 5 — Visualize the learning curve
+# Step 6 — Visualize the learning curve
 # ------------------------------------------------------------
 window = 20
 smoothed = np.convolve(rewards_per_episode, np.ones(window) / window, mode="valid")
@@ -178,9 +188,9 @@ plt.tight_layout()
 plt.show()
 
 # ------------------------------------------------------------
-# Step 6 — Extract and evaluate the learned policy
+# Step 7 — Extract and evaluate the learned policy
 # ------------------------------------------------------------
-print("=== PART 6: Extracting and Evaluating the Learned Policy ===\n")
+print("=== PART 7: Extracting and Evaluating the Learned Policy ===\n")
 
 ARROWS = {0: "^", 1: "v", 2: "<", 3: ">"}
 
