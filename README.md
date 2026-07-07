@@ -24,6 +24,12 @@ A collection of hands-on workshop tutorials covering core machine learning and d
 | [K-Means Clustering](KMEANS_TUTORIAL.md) | Cluster synthetic data using K-means. Covers feature scaling, choosing K with the elbow and silhouette methods, visualising clusters, and the effect of different K values. | [.md](KMEANS_TUTORIAL.md) · [.py](kmeans_tutorial.py) |
 | [Agglomerative Clustering](AGGLOMERATIVE_TUTORIAL.md) | Cluster data using hierarchical agglomerative clustering. Covers the dendrogram, Ward linkage, the effect of different linkage criteria on non-convex data (`make_moons`), and assigning new samples. | [.md](AGGLOMERATIVE_TUTORIAL.md) · [.py](agglomerative_tutorial.py) |
 
+### Reinforcement Learning
+
+| Tutorial | Description | Files |
+|---|---|---|
+| [Q-Learning](REINFORCEMENT_LEARNING_TUTORIAL.md) | Train a Q-learning agent from scratch on a 5x5 GridWorld. Covers the Bellman update rule, epsilon-greedy exploration, tracking the learning curve, and comparing a learned policy against a random baseline. | [.md](REINFORCEMENT_LEARNING_TUTORIAL.md) · [.py](reinforcement_learning_tutorial.py) |
+
 ---
 
 ## Prerequisites
