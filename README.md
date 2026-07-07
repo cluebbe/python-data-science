@@ -10,6 +10,7 @@ A collection of hands-on workshop tutorials covering core machine learning and d
 
 | Tutorial | Description | Files |
 |---|---|---|
+| [Linear Regression + SHAP](LINEAR_REGRESSION_TUTORIAL.md) | Fit a linear regression model on a small house price dataset. Covers coefficient interpretation, explaining individual predictions with SHAP (`LinearExplainer`, waterfall plots), computing R² from scratch, and diagnosing multicollinearity with VIF. | [.md](LINEAR_REGRESSION_TUTORIAL.md) · [.py](linear_regression_tutorial.py) |
 | [Decision Trees](DECISION_TREE_TUTORIAL.md) | Build and visualise a decision tree classifier on the Iris dataset. Covers tree structure, feature importance, overfitting via depth control, and single predictions. | [.md](DECISION_TREE_TUTORIAL.md) · [.py](decision_tree_tutorial.py) |
 | [Logistic Regression](LOGISTIC_REGRESSION_TUTORIAL.md) | Train a logistic regression classifier on the breast cancer dataset. Covers feature scaling, evaluation metrics (accuracy, ROC-AUC, confusion matrix), coefficients, regularisation (C), partial dependence plots, and Shapley value waterfall charts. | [.md](LOGISTIC_REGRESSION_TUTORIAL.md) · [.py](logistic_regression_tutorial.py) |
 | [Random Forest](RANDOM_FOREST_TUTORIAL.md) | Extend decision trees to a random forest ensemble. Covers bagging, feature importance, out-of-bag error, and comparison with a single decision tree. | [.md](RANDOM_FOREST_TUTORIAL.md) · [.py](random_forest_tutorial.py) |
