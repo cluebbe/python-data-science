@@ -167,14 +167,13 @@ Now make the grid interactive. Define the four actions (up/down/left/right) as i
 ```python
 print("=== PART 2: Environment Dynamics ===\n")
 
-ACTIONS = ["up", "down", "left", "right"]
 ACTION_DELTAS = {
     0: (-1, 0),   # up
     1: (1, 0),    # down
     2: (0, -1),   # left
     3: (0, 1),    # right
 }
-N_ACTIONS = len(ACTIONS)
+N_ACTIONS = len(ACTION_DELTAS)
 
 
 def step_env(state, action):
