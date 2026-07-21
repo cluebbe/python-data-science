@@ -388,6 +388,8 @@ plt.show()
 
 ## Step 7 — Extract and Evaluate the Learned Policy
 
+Step 5's inner loop — pick an action, step the environment, accumulate reward, stop when `done` — already plays out one full episode on every pass through the outer `for episode in range(N_EPISODES)` loop. The only things tangled into it there are the Q-table update and `choose_action`'s epsilon-greedy exploration. This step extracts that same loop into a standalone `run_episode(policy_fn, ...)` function with the learning update stripped out, so it can replay any *fixed* action-picking rule — a **policy** — after training and measure what it does.
+
 Extract the greedy policy from the Q-table (the best action in every cell) and render it as arrows on the grid. Then run one episode using the greedy policy and one using a uniformly random policy, and compare the number of steps and total reward each achieves.
 
 <details>
@@ -464,6 +466,8 @@ Path: [(0, 0), (1, 0), (2, 0), (3, 0), (3, 1), (4, 1), (4, 2), (4, 3), (4, 4)]
 Random policy : 36 steps, total reward -45.0
 Path: [(0, 0), (1, 0), (1, 1), (0, 1), (0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (2, 4), (1, 4), (0, 4), (1, 4), (0, 4), (0, 4), (1, 4), (0, 4), (0, 3), (1, 3), (1, 2), (0, 2), (0, 1), (1, 1), (1, 0), (0, 0), (0, 1), (0, 1), (0, 0), (0, 0), (1, 0), (1, 0), (1, 0), (0, 0), (0, 1), (0, 2), (1, 2), (2, 2)]
 ```
+
+**`run_episode` vs. Step 5's training loop:** line for line, this is the same loop from Step 5 — `action = choose_action(state, q_table, epsilon)` becomes `action = policy_fn(state)`, and the Q-table update (`td_target`, `td_error`, `q_table[...] += ...`) is simply gone, since evaluating a policy doesn't change it. `greedy_policy` is exactly `choose_action`'s exploit branch (`np.argmax(q_table[row, col])`) from Step 4, with `epsilon` fixed at 0 so it never explores.
 
 **Reading the policy grid:** every arrow points toward `G` while visibly steering around `X` — for example, column 0 flows straight down past the trap's row instead of cutting diagonally through `(2, 2)`, even though a diagonal-ish route is shorter on a straight-line basis. This is the Q-learning agent expressing exactly what Step 2's `-10` trap penalty set out to test: it learned to trade a slightly longer route for a guaranteed one.
 
