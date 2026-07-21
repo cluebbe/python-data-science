@@ -105,6 +105,18 @@ Unlike the other tutorials, there's no scikit-learn model here — Q-learning is
 
 Build a 5x5 grid. Define where the agent starts (`(0, 0)`), the goal (`(4, 4)`), and a trap (`(2, 2)`). Write a `render_grid()` function that builds a plain-text picture of the grid — one line per row, one character per cell (`S`/`G`/`X`/`.`) — and prints it to the console. No plotting or graphics library involved; "rendering" here just means turning the grid into a printable string.
 
+**Expected output:**
+
+```
+S . . . .
+. . . . .
+. . X . .
+. . . . .
+. . . . G
+
+S = start, G = goal (+10), X = trap (-10), . = empty (-1 per step)
+```
+
 <details>
 <summary>Solution</summary>
 
@@ -163,6 +175,12 @@ Now make the grid interactive. Define the four actions (up/down/left/right) as i
 
 **Note:** `step_env` takes `action` as a given input — it only simulates the *consequence* of an action, it doesn't decide which one to take. There's no decision-making logic to write here (no epsilon-greedy, no randomness, no Q-table lookups); that's the agent's job, and it doesn't appear until Step 4. Think of this step as writing the environment's rulebook — "if the agent is in state `X` and takes action `Y`, here's what happens" — completely independent of how `Y` gets chosen.
 
+**Expected output:** (calling `step_env(START, 3)`, i.e. "right", from `(0, 0)`)
+
+```
+From (0, 0), taking action 'right' -> next_state=(0, 1), reward=-1.0, done=False
+```
+
 <details>
 <summary>Solution</summary>
 
@@ -216,6 +234,13 @@ From (0, 0), taking action 'right' -> next_state=(0, 1), reward=-1.0, done=False
 
 Create a Q-table as a `numpy` array of zeros with shape `(GRID_SIZE, GRID_SIZE, N_ACTIONS)`. Define the hyperparameters: learning rate `alpha`, discount factor `gamma`, starting/minimum epsilon, epsilon decay rate, number of episodes, and a max steps per episode (as a safety cap in case the agent wanders forever).
 
+**Expected output:**
+
+```
+Q-table shape: (5, 5, 4)  (rows x cols x actions)
+alpha=0.1, gamma=0.9, episodes=500
+```
+
 <details>
 <summary>Solution</summary>
 
@@ -257,6 +282,13 @@ alpha=0.1, gamma=0.9, episodes=500
 
 Write a `choose_action(state, q_table, epsilon)` function: with probability `epsilon` return a random action, otherwise return the action with the highest Q-value for that state. Then demonstrate it: sample 2000 actions at a fixed state with `epsilon=0.3` against the all-zero Q-table, and check what fraction come back as a non-zero action.
 
+**Expected output:** (set `np.random.seed(0)` right before sampling, to match exactly)
+
+```
+epsilon=0.3 -> 0.217 of picks were a non-zero action
+(expected ~0.225, since 3 of 4 actions are non-zero and the all-zero Q-table always exploits to action 0)
+```
+
 <details>
 <summary>Solution</summary>
 
@@ -297,6 +329,16 @@ epsilon=0.3 -> 0.217 of picks were a non-zero action
 ## Step 5 — Train the Agent
 
 Run the training loop: for each of `N_EPISODES`, reset to `START`, then repeatedly choose an action epsilon-greedily, step the environment, and apply the Q-learning update rule until the episode ends (goal, trap, or `MAX_STEPS`). Decay epsilon after each episode. Track the total reward per episode.
+
+**Expected output:** (set `np.random.seed(42)` right before training starts, to match exactly)
+
+```
+Average reward, first 10 episodes : -21.00
+Average reward, last 10 episodes  : 2.10
+Final epsilon                     : 0.0816
+```
+
+The exact numbers are sensitive to precisely *when* your code calls `np.random` (e.g. the order of `choose_action` calls), so even a correct implementation can land on slightly different figures if structured differently. What matters most is the *shape* of the result: first-10 average sharply negative (mostly random wandering), last-10 average close to the theoretical optimum of `3` (see Step 6), final epsilon decayed close to `EPSILON_MIN = 0.05`.
 
 <details>
 <summary>Solution</summary>
@@ -357,6 +399,8 @@ Final epsilon                     : 0.0816
 
 Plot the reward per episode, along with a 20-episode moving average, and a horizontal reference line at the theoretical optimum reward. In 1–2 sentences, describe what the plot shows.
 
+**Expected output:** this step produces a plot, not printed text — check yours against these three things: a noisy, low-amplitude line hovering near a big negative number early on; a smoother moving-average line that climbs steadily as episodes progress; and both curves approaching (but not quite reaching) a flat dashed line at `y=3`.
+
 <details>
 <summary>Solution</summary>
 
@@ -393,6 +437,20 @@ plt.show()
 Step 5's inner loop — pick an action, step the environment, accumulate reward, stop when `done` — already plays out one full episode on every pass through the outer `for episode in range(N_EPISODES)` loop. The only things tangled into it there are the Q-table update and `choose_action`'s epsilon-greedy exploration. This step extracts that same loop into a standalone `run_episode(policy_fn, ...)` function with the learning update stripped out, so it can replay any *fixed* action-picking rule — a **policy** — after training and measure what it does.
 
 Extract the greedy policy from the Q-table (the best action in every cell) and render it as arrows on the grid. Then run one episode using the greedy policy and one using a uniformly random policy, and compare the number of steps and total reward each achieves.
+
+**Expected output:** the greedy-policy grid and its 8-step path should match exactly below, since it's a deterministic lookup against your already-trained `q_table`. The random-policy run (seeded with `np.random.seed(1)` inside `run_episode`) is sensitive to call order the same way Step 5 was — expect *some* long, wandering path that eventually times out or hits the trap, not necessarily these exact 36 steps.
+
+```
+Learned greedy policy:
+v v > > v
+v v > > v
+v v X > v
+> v v > v
+> > > > G
+
+Greedy policy : 8 steps, total reward 3.0
+Path: [(0, 0), (1, 0), (2, 0), (3, 0), (3, 1), (4, 1), (4, 2), (4, 3), (4, 4)]
+```
 
 <details>
 <summary>Solution</summary>
