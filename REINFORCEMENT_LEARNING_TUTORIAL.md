@@ -438,8 +438,8 @@ def run_episode(policy_fn, seed=None):
     return path, total_reward
 
 
-greedy_policy = lambda s: int(np.argmax(q_table[s[0], s[1]]))
-random_policy = lambda s: np.random.randint(N_ACTIONS)
+greedy_policy = lambda state: int(np.argmax(q_table[state[0], state[1]]))
+random_policy = lambda state: np.random.randint(N_ACTIONS)
 
 greedy_path, greedy_reward = run_episode(greedy_policy)
 random_path, random_reward = run_episode(random_policy, seed=1)
