@@ -161,6 +161,8 @@ S = start, G = goal (+10), X = trap (-10), . = empty (-1 per step)
 
 Now make the grid interactive. Define the four actions (up/down/left/right) as index-to-delta mappings, then write a `step_env(state, action)` function returning `(next_state, reward, done)`: reaching the goal gives `+10` and ends the episode, landing on the trap gives `-10` and ends the episode, and every other move costs `-1` (to push the agent toward short paths). Moving into a wall should just leave the agent in place (still costing `-1`).
 
+**Note:** `step_env` takes `action` as a given input — it only simulates the *consequence* of an action, it doesn't decide which one to take. There's no decision-making logic to write here (no epsilon-greedy, no randomness, no Q-table lookups); that's the agent's job, and it doesn't appear until Step 4. Think of this step as writing the environment's rulebook — "if the agent is in state `X` and takes action `Y`, here's what happens" — completely independent of how `Y` gets chosen.
+
 <details>
 <summary>Solution</summary>
 

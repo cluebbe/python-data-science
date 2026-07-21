@@ -71,7 +71,12 @@ N_ACTIONS = len(ACTIONS)
 
 
 def step_env(state, action):
-    """Apply `action` to `state`. Returns (next_state, reward, done)."""
+    """Apply `action` to `state`. Returns (next_state, reward, done).
+
+    Note: this only simulates the consequence of a given action — it does
+    not decide which action to take. Action selection (epsilon-greedy)
+    doesn't appear until Step 4.
+    """
     row, col = state
     d_row, d_col = ACTION_DELTAS[action]
     # Clip to the grid so moving into a wall just bumps in place.
