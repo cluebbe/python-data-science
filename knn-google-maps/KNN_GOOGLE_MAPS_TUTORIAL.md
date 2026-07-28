@@ -149,11 +149,35 @@ The frontend (`templates/index.html`) needs no Python imports — it loads the G
 
 ---
 
+## How to work through this tutorial — run it after every step
+
+Do **not** save running the app for the end. Every step below finishes with a **Checkpoint**: a command to run and the output you should see. A step that doesn't pass its checkpoint is a step to fix now, while the change that broke it is the only thing you just touched. Debugging eight steps at once is what makes web apps feel hard.
+
+Set yourself up with two terminals:
+
+| Terminal | Purpose |
+|---|---|
+| **1 — the server** | `python app.py`, started once in Step 1 and left running for the whole tutorial |
+| **2 — the client** | `curl` commands for the JSON checkpoints in Steps 3 and 4 |
+
+`app.run(debug=True)` (added in Step 1) enables Flask's **auto-reloader**: every time you save `app.py`, the server restarts itself and you'll see a fresh `Restarting with stat` line in Terminal 1. You never need to stop and restart it manually. Debug mode also renders tracebacks in the browser instead of a bare `500` page.
+
+Changes to `templates/index.html` don't even need a reload — just refresh the browser (the `after_request` cache headers from Step 1 make sure you get the new version).
+
+From Step 5 onward, keep your browser's **DevTools** open (`F12`, or `Cmd+Option+I` on macOS):
+
+- the **Console** tab shows JavaScript errors — a typo there breaks the map silently, with no Python traceback anywhere
+- the **Network** tab shows each `fetch` to `/knn_search` and `/knn_classification`, with the exact JSON sent and received
+
+> **Windows users:** in PowerShell, `curl` is an alias for `Invoke-WebRequest` and won't accept the flags below. Write `curl.exe` explicitly (bundled with Windows 10+), or run the checkpoints from Git Bash / WSL.
+
+---
+
 ## Step 1 — Project Skeleton & Data Points (`app.py`)
 
 Create the Flask app instance, load the `.env` file, and define `data_points`: a Python list of dictionaries, each with `lat`, `lng`, `title`, `description`, `icon`, and `category`. Include at least 8 points split across two categories (e.g. `restaurant` and `car_workshop`) clustered around a city of your choice.
 
-Also add an `after_request` hook that disables browser caching for every response.
+Also add an `after_request` hook that disables browser caching for every response, and — at the very bottom of the file — the `if __name__ == "__main__"` block that starts the development server with `debug=True`, so the app is runnable from this step onward.
 
 <details>
 <summary>Solution</summary>
@@ -189,13 +213,54 @@ data_points = [
     {"lat": 40.4050, "lng": -3.6900, "title": "AutoZone Madrid", "description": "Car parts and service center", "icon": "https://maps.google.com/mapfiles/ms/icons/green-dot.png", "category": "car_workshop"},
     {"lat": 40.4320, "lng": -3.7000, "title": "Bernabéu Auto Service", "description": "Professional car repair shop", "icon": "https://maps.google.com/mapfiles/ms/icons/green-dot.png", "category": "car_workshop"},
 ]
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
 ```
 
 **`data_points`** stands in for a database table in this small app — a real deployment would query this from Postgres, a spreadsheet import, or an API instead of hardcoding it. Every point needs `lat`/`lng` (fed to KNN as features) and `category` (fed to KNN as the label for classification).
 
 **Why the `after_request` cache hook?** During development you'll frequently edit `data_points` and reload the page to see the change. Browsers aggressively cache plain HTML/GET responses; without these headers you might keep seeing a stale list of points even after editing and restarting the server. Setting `Cache-Control: no-store` forces a fresh render every time.
 
+**`if __name__ == "__main__"`** only runs when you execute the file directly (`python app.py`), not when something imports it. `debug=True` turns on the auto-reloader and in-browser tracebacks — never use it in production, since the debugger lets anyone who can reach the page execute code on your server.
+
 </details>
+
+### Checkpoint — the server starts
+
+In Terminal 1, with the virtual environment activated:
+
+```bash
+python app.py
+```
+
+**Expected output:**
+
+```
+ * Serving Flask app 'app'
+ * Debug mode: on
+ * Running on http://127.0.0.1:5000
+Press CTRL+C to quit
+ * Restarting with stat
+ * Debugger is active!
+```
+
+Leave this running for the rest of the tutorial. Visiting `http://127.0.0.1:5000` right now correctly gives **404 Not Found** — you haven't defined any routes yet. What you've proved is that Python, Flask, scikit-learn and numpy all import cleanly and the port is free; an `ImportError` or `ModuleNotFoundError` here means the `pip install` from Preparation didn't land in the active virtual environment.
+
+In Terminal 2, confirm your data survived the round trip through Python:
+
+```bash
+python -c "import app; print(len(app.data_points), sorted({p['category'] for p in app.data_points}))"
+```
+
+**Expected output:**
+
+```
+8 ['car_workshop', 'restaurant']
+```
+
+Both categories must appear — a `KNeighborsClassifier` trained on a single label can never predict anything else, and Step 4 would look broken for a reason that actually originates here.
 
 ---
 
@@ -223,6 +288,37 @@ def index():
 **`points=data_points`** hands the entire Python list to Jinja. The template will later convert it to a JSON array for use in JavaScript — see Step 5.
 
 </details>
+
+### Checkpoint — the route renders and the API key is loaded
+
+The real `templates/index.html` isn't written until Step 5, so create a throwaway placeholder now — you'd otherwise get `jinja2.exceptions.TemplateNotFound`:
+
+```bash
+mkdir -p templates
+```
+
+```html
+<!-- templates/index.html — temporary, replaced in Step 5 -->
+<p>Points: {{ points|length }}</p>
+<p>Key loaded: {{ 'yes' if google_maps_key else 'NO' }}</p>
+<p>First point: {{ points[0].title }}</p>
+```
+
+Save `app.py`; Terminal 1 shows `Restarting with stat`. Open `http://127.0.0.1:5000`:
+
+**Expected output:**
+
+```
+Points: 8
+Key loaded: yes
+First point: Puerta del Sol
+```
+
+Three separate things just got verified, and it's worth being explicit about which is which, because they fail independently:
+
+- **`Points: 8`** — Flask found `templates/`, and the `data_points` list reached Jinja
+- **`Key loaded: yes`** — `load_dotenv()` found your `.env` and `os.getenv` read the variable. If this says **`NO`**, fix it *now*: it is the single most common cause of the blank grey map in Step 5, and it is far easier to diagnose on this page than through the Google Maps API's silent failure. Check that `.env` sits next to `app.py`, that the line reads `GOOGLE_MAPS_KEY=AIza...` with no quotes and no spaces around the `=`, and that you restarted the server after creating it (`load_dotenv()` only runs at import time)
+- **`First point: Puerta del Sol`** — attribute access on the dicts works, which is what Step 5's marker loop depends on
 
 ---
 
@@ -274,6 +370,74 @@ def knn_search():
 **`kneighbors(query_point)`** returns two parallel arrays: `distances` (sorted ascending) and `indices` (the row positions in `X`, and therefore in `data_points`, of each neighbor). Zipping them together lets you look up the original point for each result while keeping its distance.
 
 </details>
+
+### Checkpoint — the search endpoint answers
+
+No frontend is needed to test a JSON endpoint, and you shouldn't wait for one. In Terminal 2, click a point on the map *by hand* — a coordinate just north-east of Puerta del Sol:
+
+```bash
+curl -s -X POST http://127.0.0.1:5000/knn_search \
+  -H "Content-Type: application/json" \
+  -d '{"lat": 40.4180, "lng": -3.7020, "k": 3}' | python -m json.tool
+```
+
+**Expected output:**
+
+```json
+{
+    "neighbors": [
+        {
+            "description": "The heart of Madrid",
+            "distance": 0.0020330501728824894,
+            "lat": 40.4168,
+            "lng": -3.7038,
+            "title": "Puerta del Sol"
+        },
+        {
+            "description": "Famous for tapas and restaurants",
+            "distance": 0.002780958249952361,
+            "lat": 40.4175,
+            "lng": -3.705,
+            "title": "La Latina District"
+        },
+        {
+            "description": "Oldest restaurant in the world",
+            "distance": 0.004102464103840381,
+            "lat": 40.414,
+            "lng": -3.701,
+            "title": "Casa Botín"
+        }
+    ],
+    "query": {
+        "lat": 40.418,
+        "lng": -3.702
+    }
+}
+```
+
+Check the shape, not the exact decimals: **three** neighbors for `k=3`, `distance` **ascending**, and the nearest one being the point you'd expect from eyeballing the coordinates. Remember the caveat from the introduction — these distances aren't kilometers, only a consistent ranking.
+
+Now test the error path and the `k` guard, which a mouse click in the browser can never trigger:
+
+```bash
+# missing lng -> 400, not a traceback
+curl -s -i -X POST http://127.0.0.1:5000/knn_search \
+  -H "Content-Type: application/json" -d '{"lat": 40.4180}' | head -1
+
+# k larger than the dataset -> clamped to 8 by min(), not a ValueError
+curl -s -X POST http://127.0.0.1:5000/knn_search \
+  -H "Content-Type: application/json" \
+  -d '{"lat": 40.4180, "lng": -3.7020, "k": 99}' | python -c "import json,sys; print(len(json.load(sys.stdin)['neighbors']), 'neighbors')"
+```
+
+**Expected output:**
+
+```
+HTTP/1.1 400 BAD REQUEST
+8 neighbors
+```
+
+A `500` on the first command means your `lat`/`lng` guard is missing or placed after the code that uses them; a `ValueError: Expected n_neighbors <= n_samples` on the second means the `min(k, len(data_points))` clamp isn't there.
 
 ---
 
@@ -343,6 +507,59 @@ def knn_classification():
 **Why search again after classifying?** `predict` tells you the most likely category, but the plain nearest neighbors (from Step 3) might include points from *both* categories. Filtering `data_points` down to `category_points` first, then running a second `NearestNeighbors` search only within that filtered set, guarantees the "similar locations" shown to the user actually match the predicted category — e.g. don't show a car workshop as a "similar restaurant."
 
 </details>
+
+### Checkpoint — the classifier predicts, and K actually changes the answer
+
+Same query point as Step 3, now through the classifier:
+
+```bash
+curl -s -X POST http://127.0.0.1:5000/knn_classification \
+  -H "Content-Type: application/json" \
+  -d '{"lat": 40.4180, "lng": -3.7020, "k": 3}' | python -m json.tool
+```
+
+**Expected output** (`similar_points` abbreviated — it matches Step 3's three restaurants):
+
+```json
+{
+    "predicted_category": "restaurant",
+    "probabilities": {
+        "car_workshop": 0.0,
+        "restaurant": 1.0
+    },
+    "query": {
+        "lat": 40.418,
+        "lng": -3.702
+    },
+    "similar_points": [ ... ]
+}
+```
+
+Deep in restaurant territory, all 3 neighbors vote the same way, so confidence is a flat `1.0`. That's correct but uninformative — it would look identical if `predict_proba` were broken. So probe a point *between* the two clusters, where the vote should actually split:
+
+```bash
+for K in 1 3 5; do
+  curl -s -X POST http://127.0.0.1:5000/knn_classification \
+    -H "Content-Type: application/json" \
+    -d "{\"lat\": 40.4120, \"lng\": -3.6960, \"k\": $K}" |
+  python -c "import json,sys; d=json.load(sys.stdin); print('k=$K ->', d['predicted_category'], d['probabilities'])"
+done
+```
+
+**Expected output:**
+
+```
+k=1 -> restaurant {'car_workshop': 0.0, 'restaurant': 1.0}
+k=3 -> restaurant {'car_workshop': 0.3333333333333333, 'restaurant': 0.6666666666666666}
+k=5 -> restaurant {'car_workshop': 0.4, 'restaurant': 0.6}
+```
+
+This is the theory from the introduction, visible in your own output: confidence is just the *fraction of the K neighbors* voting for each class, so it can only ever take values `n/K` — `1/1`, `2/3`, `3/5`. As K grows, the query point sees more of the rival cluster and confidence erodes toward a coin flip. Watching that number move as you vary K is the fastest proof that the classifier is genuinely voting rather than returning a constant.
+
+Two things worth confirming in the JSON before moving on, since the frontend depends on both:
+
+- every `similar_points` entry belongs to the **predicted** category — that's the second `NearestNeighbors` search doing its job
+- `probabilities` has **both** keys, `restaurant` and `car_workshop`. Step 7 reads them by name, so a missing key surfaces there as `undefined%` rather than as an error here
 
 ---
 
@@ -442,6 +659,19 @@ Build the HTML page: a full-screen `#map` div, a floating control panel (`.heade
 
 </details>
 
+### Checkpoint — the map draws your points
+
+This replaces the placeholder template from Step 2. No server restart is needed for a template change — just refresh `http://127.0.0.1:5000`.
+
+**Expected output:** a roadmap centred on Madrid, `8 custom data points loaded from Python` in the panel, and **8 markers** — 4 red around the centre, 4 green further out. Clicking a marker opens an info window with its title and description.
+
+Open DevTools and confirm two things before touching Step 6:
+
+- the **Console** tab is clean. `initMap is not a function` means `initMap` is defined after the Maps script tag instead of before it; `Uncaught SyntaxError` in the inline script usually means `| safe` is missing from the `tojson` filter, so Jinja HTML-escaped the quotes into `&#34;` and broke the JavaScript literal
+- the **Network** tab shows the request to `maps.googleapis.com` returning **200**. A `403` or `REQUEST_DENIED` is the API key — the key itself, its restrictions, or the Maps JavaScript API not being enabled, all of which are Google Cloud Console problems rather than code problems
+
+A **blank grey map** is the classic symptom here. The distinction that saves you time: if the panel still says `8 custom data points loaded from Python`, then Flask, Jinja and your data are all fine and the fault is purely the key — which your Step 2 checkpoint already ruled out or caught.
+
 ---
 
 ## Step 6 — Handle Map Clicks & Search Mode (`templates/index.html`)
@@ -507,6 +737,25 @@ function displaySearchResults(neighbors) {
 **`label: String(i+1)`** puts a number (1, 2, 3, ...) directly inside the marker icon, matching the numbered list in the results panel so users can visually connect a marker to its row.
 
 </details>
+
+### Checkpoint — clicking the map returns neighbors
+
+Refresh, leave the mode on **Search**, and click somewhere between the red markers near the city centre.
+
+**Expected output:** a yellow marker at your click, **3** numbered markers on the nearest points, and a results panel listing those 3 with ascending distances. Click a second, different spot — the old yellow and numbered markers must **disappear** rather than accumulate; if they pile up, `clearResults()` isn't being called or `setMap(null)` is missing.
+
+Then vary the inputs, since this is the first step where the whole stack is wired together:
+
+- set **K Neighbors** to `1`, click → exactly 1 marker; set it to `8` → 8 markers
+- switch to **Classification** and click → nothing happens yet (`performKNNClassification` doesn't exist until Step 7). Expect `Uncaught ReferenceError: performKNNClassification is not defined` in the Console. That's the correct result for this step, not a bug
+
+In the **Network** tab, click the `knn_search` entry. Its **Payload** should show the clicked coordinates and your chosen `k`, and its **Response** should be the same JSON shape you curled in Step 3. This is where a frontend bug separates cleanly from a backend one:
+
+| What you see | Where the fault is |
+|---|---|
+| No `knn_search` request at all | The click listener — not registered, or the mode radio lookup is wrong |
+| Request sent, `400`/`500` returned | The backend, or the payload the frontend built. Terminal 1 has the traceback |
+| `200` with correct JSON, nothing on screen | `displaySearchResults` — element IDs or the `results` panel's `display` toggle |
 
 ---
 
@@ -598,29 +847,65 @@ window.addEventListener('load', () => {
 
 </details>
 
+### Checkpoint — classification mode in the browser
+
+Refresh, switch to **Classification**, and click the same in-between spot you curled in Step 4 — roughly `40.4120, -3.6960`, south-east of the centre.
+
+**Expected output:** the panel shows `Predicted Category: restaurant`, `Restaurant: 66.7%` / `Car Workshop: 33.3%` at `K=3`, and red numbered markers on the nearest restaurants. Those percentages are the Step 4 curl output rendered as UI — if the browser disagrees with your curl, the fault is in `displayClassificationResults`, not in the model.
+
+Three behaviours to exercise now that both modes exist:
+
+- **the toggle** — switch Search → Classification and back. Markers and the results panel must clear on every switch, and the instruction text must change. Leftover markers from the other mode are exactly what the `change` listener is there to prevent
+- **K flipping the prediction** — with the click point fixed, raise K from `1` to `5` and re-click. Confidence should fall (`100%` → `66.7%` → `60%`) as more of the rival cluster is pulled into the vote. This is the small-K/large-K tradeoff from the introduction, now visible on screen
+- **`undefined%`** in the confidence lines means `data.probabilities` lacks a key by that name — likelier a typo in the category strings in `data_points` (Step 1) than a frontend bug
+
 ---
 
-## Step 8 — Run & Test the App
+## Step 8 — Final Run-Through & Troubleshooting
 
-With your `.env` file in place (Step "Preparation — Environment Setup") and the virtual environment activated, start the Flask development server:
+If you've been running the checkpoints, the app already works — nothing new gets built here. This step is the end-to-end pass you'd do before showing the app to someone else, starting from a **cold start** so you catch anything that only worked because of state left over in a long-running server.
+
+Stop Terminal 1 with `Ctrl+C`, then:
 
 ```bash
+source venv/bin/activate        # macOS / Linux
 python app.py
 ```
 
-Open `http://127.0.0.1:5000` in your browser. You should see a map centered on your chosen city with the preloaded markers visible.
+Open `http://127.0.0.1:5000` and walk the whole feature set:
 
-Try both modes:
+| # | Action | Expected |
+|---|---|---|
+| 1 | Load the page | 8 markers: 4 red (restaurants), 4 green (car workshops) |
+| 2 | Click any marker | Info window with that point's title and description |
+| 3 | Search mode, `K=3`, click the centre | Yellow click marker, 3 numbered markers, 3 rows sorted by ascending distance |
+| 4 | Click a second spot | Previous markers gone, new ones drawn |
+| 5 | Set `K=8`, click | 8 numbered markers |
+| 6 | Switch to Classification | Panel clears, instruction text changes |
+| 7 | Click deep in the red cluster | `restaurant` at `100%`, similar points all red |
+| 8 | Click deep in the green cluster | `car_workshop` at `100%`, similar points all green |
+| 9 | Click between the clusters, vary `K` from 1 to 5 | Confidence drops as K grows; near the boundary the prediction can flip |
 
-- **Search mode** (default) — click anywhere on the map; you should see `K` numbered markers appear along with a distance-sorted list in the top-left panel
-- **Classification mode** — switch the radio button, click again; you should see a predicted category, a confidence percentage for each category, and markers for the closest locations sharing that category
-
-Experiment with the `K Neighbors` input — a small `K` (e.g. 1) makes the classification snap to whichever single point is closest, while a larger `K` averages over more neighbors and can flip the prediction near a category boundary.
+Both DevTools tabs should stay quiet throughout: no Console errors, and every `knn_search`/`knn_classification` request returning `200`.
 
 **Troubleshooting:**
 
 | Symptom | Likely cause |
 |---|---|
-| Blank grey map, no markers | `GOOGLE_MAPS_KEY` missing/invalid, or the Maps JavaScript API isn't enabled for that key |
+| `ModuleNotFoundError` on startup | The virtual environment isn't activated, or `pip install` ran against a different interpreter — re-run the Preparation install with `venv` active |
+| `Address already in use` / `Port 5000 is in use` | An earlier `python app.py` is still running, or (on macOS) **AirPlay Receiver** owns port 5000 — disable it in System Settings → General → AirDrop & Handoff, or run `app.run(debug=True, port=5001)` |
+| `jinja2.exceptions.TemplateNotFound: index.html` | `index.html` isn't inside a `templates/` folder next to `app.py` — Flask looks nowhere else |
+| Blank grey map, no markers | `GOOGLE_MAPS_KEY` missing/invalid, or the Maps JavaScript API isn't enabled for that key — re-run the Step 2 checkpoint, which reports the key's presence directly |
+| Page renders, but no markers and a Console error | JavaScript, not Python — most often `initMap` defined after the Maps script tag, or `| safe` missing from `{{ points | tojson }}` |
 | `500` error on click | Flask console will show the traceback — check `k` is a valid number and `data_points` isn't empty |
+| `400 Missing lat/lng` on click | The frontend isn't sending the coordinates — check the request Payload in the Network tab against Step 6 |
+| Prediction is always the same category | Every point in `data_points` shares one `category`, or the label strings are inconsistent (`"restaurant"` vs `"Restaurant"`) — the Step 1 checkpoint catches this |
+| Code edits have no effect | The server didn't reload — confirm `debug=True` and look for `Restarting with stat` in Terminal 1 |
 | Stale markers after editing `data_points` | Hard-refresh the browser — the `after_request` cache headers from Step 1 should prevent this, but browser extensions can still cache aggressively |
+
+### Where to go next
+
+- **Fit once, not per request** — both endpoints refit the model on every call. Move the `fit` to module level and see the latency drop; then think about what has to happen when `data_points` changes
+- **Fix the radians caveat** — convert with `np.radians()` before fitting and multiply by `6371` to return real kilometers, then label the distances `km` in the UI instead of `°`
+- **Generalise the confidence display** — loop over `Object.keys(data.probabilities)` so a third category works without touching the frontend
+- **Automate these checkpoints** — the curl commands in Steps 3 and 4 are assertions in disguise. `pip install pytest`, use Flask's `app.test_client()`, and turn each one into a test that runs in a second without a browser
