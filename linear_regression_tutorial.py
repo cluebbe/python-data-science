@@ -12,10 +12,11 @@ Training finds the weights (w0..wn) that minimise the sum of squared
 residuals between predicted and actual values (Ordinary Least Squares).
 
 This tutorial uses a tiny, hand-built house price dataset to keep every
-number traceable, then covers three ways to look "inside" the model:
+number traceable, then covers four ways to look "inside" the model:
   1. SHAP (Shapley values)  — explain individual predictions
   2. R^2                    — how much variance the model explains overall
   3. VIF                    — whether the coefficients can be trusted
+  4. OLS summary table      — coefficients, p-values and diagnostics at a glance
 """
 
 # ------------------------------------------------------------
@@ -92,6 +93,8 @@ print(f"SHAP age       : {sv2.values[0][2]:+.2f} kEUR\n")
 # ------------------------------------------------------------
 # Step 3 — Visualise a prediction with a waterfall plot
 # ------------------------------------------------------------
+print("=== PART 3: Visualising a Prediction with a Waterfall Plot ===\n")
+
 shap.plots.waterfall(sv1[0], max_display=5, show=False)
 plt.title("SHAP Explanation - Typical House (125 m², 4 bedrooms)")
 plt.tight_layout()
@@ -100,7 +103,7 @@ plt.show()
 # ------------------------------------------------------------
 # Step 4 — Compute R^2 from scratch
 # ------------------------------------------------------------
-print("=== PART 3: Calculating R² Score (Coefficient of Determination) ===\n")
+print("=== PART 4: Calculating R² Score (Coefficient of Determination) ===\n")
 
 y_mean = np.mean(y)
 ss_total = np.sum((y - y_mean) ** 2)
@@ -118,7 +121,7 @@ print(f"-> The model explains {r2*100:.1f}% of the variation in house prices.\n"
 # ------------------------------------------------------------
 # Step 5 — Check for multicollinearity with VIF
 # ------------------------------------------------------------
-print("=== PART 4: VIF - Multicollinearity Check ===\n")
+print("=== PART 5: VIF - Multicollinearity Check ===\n")
 
 X_const = sm.add_constant(X)  # Important: add intercept
 
@@ -130,3 +133,13 @@ vif_data["VIF"] = [
 ]
 
 print(vif_data.round(3))
+
+# ------------------------------------------------------------
+# Step 6 — The whole story in one table
+# ------------------------------------------------------------
+print("\n=== PART 6: Full Regression Summary ===\n")
+
+# Same OLS fit as sklearn's LinearRegression, but statsmodels keeps the
+# statistics around: standard errors, t-values, p-values, confidence intervals.
+ols_model = sm.OLS(y, X_const).fit()  # X_const already has the intercept (Step 5)
+print(ols_model.summary())

@@ -192,6 +192,8 @@ Using the SHAP values for House 1 from Step 2, produce a waterfall plot. In 1–
 <summary>Solution</summary>
 
 ```python
+print("=== PART 3: Visualising a Prediction with a Waterfall Plot ===\n")
+
 shap.plots.waterfall(sv1[0], max_display=5, show=False)
 plt.title("SHAP Explanation - Typical House (125 m², 4 bedrooms)")
 plt.tight_layout()
@@ -214,7 +216,7 @@ Compute the R² score (coefficient of determination) manually: the mean of `y`, 
 <summary>Solution</summary>
 
 ```python
-print("=== PART 3: Calculating R² Score (Coefficient of Determination) ===\n")
+print("=== PART 4: Calculating R² Score (Coefficient of Determination) ===\n")
 
 y_mean = np.mean(y)
 ss_total = np.sum((y - y_mean) ** 2)
@@ -248,7 +250,7 @@ Using `statsmodels`, add an intercept column to `X` with `sm.add_constant`, then
 <summary>Solution</summary>
 
 ```python
-print("=== PART 4: VIF - Multicollinearity Check ===\n")
+print("=== PART 5: VIF - Multicollinearity Check ===\n")
 
 X_const = sm.add_constant(X)  # Important: add intercept
 
@@ -275,5 +277,74 @@ print(vif_data.round(3))
 | ≥ 10 | Severe — coefficients for these features are unreliable and shouldn't be interpreted individually |
 
 For this dataset all three VIFs come out well under 5, so `size_m2`, `bedrooms`, and `age_years` are each contributing independent information — the coefficients from Step 1 and the SHAP values from Step 2 can be trusted. The broader lesson: **a high R² alone doesn't guarantee reliable feature interpretations** — always pair a performance metric with a diagnostic like VIF before trusting what the coefficients (or their SHAP values) say about *why* the model predicts what it does.
+
+</details>
+
+---
+
+## Step 6 — Read the Full Regression Table
+
+Everything so far was computed piece by piece: the coefficients in Step 1, R² in Step 4, a collinearity check in Step 5. `statsmodels` can produce all of it — plus the statistics scikit-learn never exposes — in a single table.
+
+Fit an OLS model with `sm.OLS` on `y` and the `X_const` you built in Step 5, then print its `.summary()`. Compare the `coef` column against the coefficients you printed in Step 1 and the `R-squared` value against your Step 4 calculation.
+
+<details>
+<summary>Solution</summary>
+
+```python
+print("\n=== PART 6: Full Regression Summary ===\n")
+
+# Same OLS fit as sklearn's LinearRegression, but statsmodels keeps the
+# statistics around: standard errors, t-values, p-values, confidence intervals.
+ols_model = sm.OLS(y, X_const).fit()  # X_const already has the intercept (Step 5)
+print(ols_model.summary())
+```
+
+Expected output:
+
+```
+                            OLS Regression Results
+==============================================================================
+Dep. Variable:             price_kEUR   R-squared:                       0.981
+Model:                            OLS   Adj. R-squared:                  0.971
+Method:                 Least Squares   F-statistic:                     102.6
+No. Observations:                  10   Prob (F-statistic):           1.52e-05
+Df Residuals:                       6   Log-Likelihood:                -38.556
+Df Model:                           3   AIC:                             85.11
+==============================================================================
+                 coef    std err          t      P>|t|      [0.025      0.975]
+------------------------------------------------------------------------------
+const         58.7851     27.677      2.124      0.078      -8.939     126.509
+size_m2        2.1835      0.280      7.812      0.000       1.500       2.867
+bedrooms      33.2269      5.288      6.284      0.001      20.289      46.165
+age_years     -2.2098      0.516     -4.286      0.005      -3.471      -0.948
+==============================================================================
+Omnibus:                        1.793   Durbin-Watson:                   2.533
+Prob(Omnibus):                  0.408   Jarque-Bera (JB):                0.964
+Skew:                          -0.406   Prob(JB):                        0.618
+Kurtosis:                       1.714   Cond. No.                         664.
+==============================================================================
+```
+
+**Why scikit-learn has no equivalent:** `LinearRegression` is built for *prediction* — it exposes `coef_`, `intercept_`, and `predict()`, and nothing else, because that's all a prediction pipeline needs. `statsmodels` comes from the statistics tradition instead, where the point of fitting a model is to make *inferences* about the coefficients. Both fit the identical OLS model to identical data, which is why `coef` here reproduces Step 1's numbers (2.18 / 33.23 / −2.21) exactly, and `R-squared` reproduces the 0.981 you derived by hand in Step 4.
+
+**The columns that are genuinely new:**
+
+| Column | What it tells you |
+|---|---|
+| `std err` | How much the coefficient estimate would wobble across different samples of data |
+| `t` | The coefficient divided by its standard error — how many standard errors it sits from zero |
+| `P>\|t\|` | The probability of seeing a coefficient this large if the feature's true effect were zero |
+| `[0.025 0.975]` | The 95% confidence interval — the plausible range for the true coefficient |
+
+**Reading the p-values:** `size_m2` (p ≈ 0.000), `bedrooms` (p = 0.001) and `age_years` (p = 0.005) are all comfortably below the conventional 0.05 threshold, so each is statistically distinguishable from "no effect". The intercept is not (p = 0.078) — unsurprising, since a 0 m², 0-bedroom house is far outside the data, and the intercept is the model extrapolating to a point it has never seen. **This is the one question SHAP and R² cannot answer.** SHAP tells you how much a feature moved a particular prediction; R² tells you how well the model fits overall; neither tells you whether a coefficient is distinguishable from noise. With only 10 rows, that distinction matters.
+
+**Adjusted R² vs R²:** plain R² can only go up when you add a feature, even a useless random one, because extra columns always let OLS fit the training data a little better. Adjusted R² (0.971 here, against 0.981) penalises each added feature and can go *down*, which makes it the honest number when comparing models with different feature counts.
+
+**F-statistic:** where each p-value tests one coefficient, the F-statistic tests the whole model at once — "do these three features *jointly* explain anything?" `Prob (F-statistic) = 1.52e-05` says yes, decisively.
+
+**`Cond. No.` — a second opinion on Step 5:** the condition number is another multicollinearity signal, derived from the geometry of the feature matrix rather than from per-feature regressions like VIF. Values above ~1000 are the usual warning sign; 664 here is elevated mostly because the features live on wildly different scales (`size_m2` in the hundreds, `bedrooms` in single digits) rather than because they're redundant — which is exactly what the low VIFs in Step 5 already told you. Two diagnostics, same conclusion: these coefficients can be trusted.
+
+**The residual diagnostics** (Omnibus, Jarque-Bera, Skew, Kurtosis) all test one assumption: that the residuals are normally distributed, which is what the p-values and confidence intervals above depend on. Both `Prob(Omnibus) = 0.408` and `Prob(JB) = 0.618` are well above 0.05, meaning there's no evidence against normality — though with 10 data points these tests have very little power to detect a problem even if one existed. **Durbin-Watson** (2.533) checks whether consecutive residuals are correlated; values near 2 indicate independence, which matters most for time-ordered data.
 
 </details>
