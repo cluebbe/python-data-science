@@ -339,6 +339,21 @@ Kurtosis:                       1.714   Cond. No.                         664.
 
 **Reading the p-values:** `size_m2` (p ≈ 0.000), `bedrooms` (p = 0.001) and `age_years` (p = 0.005) are all comfortably below the conventional 0.05 threshold, so each is statistically distinguishable from "no effect". The intercept is not (p = 0.078) — unsurprising, since a 0 m², 0-bedroom house is far outside the data, and the intercept is the model extrapolating to a point it has never seen. **This is the one question SHAP and R² cannot answer.** SHAP tells you how much a feature moved a particular prediction; R² tells you how well the model fits overall; neither tells you whether a coefficient is distinguishable from noise. With only 10 rows, that distinction matters.
 
+> **Side note — formatting the p-values.** The `0.000` printed for `size_m2` is a display artifact: a p-value is never exactly zero, it is just smaller than the three decimals the table shows. If you need a different notation, rewrite the cells before printing:
+>
+> ```python
+> def format_p(p, digits=3):
+>     threshold = 10 ** -digits
+>     return f"<{threshold:.{digits}f}" if p < threshold else f"{p:.{digits}f}"
+>
+> smry = ols_model.summary()
+> for row, pval in zip(smry.tables[1][1:], ols_model.pvalues):  # row 0 = header
+>     row[4].data = format_p(pval)                              # column 4 = "P>|t|"
+> print(smry)
+> ```
+>
+> `size_m2` then reads `<0.001`. Note that `tables[1]` and the column index rely on the summary's internal layout rather than a public API — `ols_model.summary2()`, whose tables are pandas DataFrames addressable by column name, is the sturdier option if you do this regularly.
+
 **Adjusted R² vs R²:** plain R² can only go up when you add a feature, even a useless random one, because extra columns always let OLS fit the training data a little better. Adjusted R² (0.971 here, against 0.981) penalises each added feature and can go *down*, which makes it the honest number when comparing models with different feature counts.
 
 **F-statistic:** where each p-value tests one coefficient, the F-statistic tests the whole model at once — "do these three features *jointly* explain anything?" `Prob (F-statistic) = 1.52e-05` says yes, decisively.
